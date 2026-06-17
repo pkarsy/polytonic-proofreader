@@ -14,9 +14,10 @@ A browser-based polytonic Greek OCR proofreader.
 3. **Navigate to the page** — use the **← Previous** / **Next →** toolbar buttons to go to the page you just processed.
 4. **Paste the OCR** — paste the AI's output into the text pane on the right.
 5. **Proofread** — compare the scan image (left) against the text (right). Use the **accent‑ignoring search** (Ctrl+F) to spot-check dubious words, and the **Greek character palette** (Ctrl+P) to type corrections. The AI vision model can also suggest what to check again — follow its recommendations.
-6. **Save and move on** — press **Save** (Ctrl+S) and repeat for the next page. Unsaved changes show a `*` in the browser tab title.
+6. **Read and annotate** — the purpose is not just to correct OCR errors, but to actually **read the book** as you go. Add comments for small errors in the original text, noteworthy topics, or anything that catches your interest — inside brackets like `[λέξη: επεξήγηση]` or as plain notes. These annotations persist in the saved text.
+7. **Save and move on** — press **Save** (Ctrl+S) and repeat for the next page. Unsaved changes show a `*` in the browser tab title.
 
-The goal is to catch what the machine got wrong, not to type every page from scratch.
+The goal is to catch what the machine got wrong, not to type every page from scratch — and to read and engage with the text along the way.
 
 > See [`gemini-prompt.txt`](gemini-prompt.txt) for the prompt used with Gemini to obtain polytonic Greek OCR output.
 
