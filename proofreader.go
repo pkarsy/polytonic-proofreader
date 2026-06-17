@@ -11,10 +11,10 @@
 //
 // This entire application is ONE Go file containing:
 //
-//   [Go server]  ~lines 20–216   HTTP server, file discovery, API
-//   [Frontend]   ~lines 218–967  Entire HTML/CSS/JS embedded in
+//   [Go server]  ~lines 89–298   HTTP server, file discovery, API
+//   [Frontend]   ~lines 300–1049 Entire HTML/CSS/JS embedded in
 //                                the `indexHTML` const (Go string)
-//   [main()]     ~lines 969–1003 Entry point, route registration
+//   [main()]     ~lines 1053–1087 Entry point, route registration
 //
 // ── What is language-generic (no changes needed for a fork) ──────
 //
@@ -35,29 +35,29 @@
 //
 //   Inside the embedded frontend (indexHTML, ~lines 300–960):
 //
-//   1. Character palette (~line 450)
+//   1. Character palette (~line 537)
 //      The `greekCharGroups` array. Replace each group with your
 //      script's characters + diacritics. Each row: a base letter
 //      button (leftmost) followed by its accented/diacritic variants.
 //
-//   2. Transliteration map (~line 480)
+//   2. Transliteration map (~line 411)
 //      The `latinToGreek` object. Map Latin QWERTY keys to your
 //      script's base letters so users can type without switching
 //      keyboard layouts. Set `forceGreek` default to false if
 //      your script doesn't need it.
 //
-//   3. Text-type detection (~line 759)
+//   3. Text-type detection (~line 841)
 //      The `detectTextType()` function. Currently classifies text
 //      as polytonic Greek / neo-hellenic / English using Unicode
 //      ranges. Replace the ranges with your script's blocks.
 //
-//   4. Accent-ignoring search (~line 839)
+//   4. Accent-ignoring search (~line 921)
 //      The `doFind()` function. Currently uses NFD normalization
 //      (strips combining marks) plus Greek-specific phonetic
 //      equivalence (ο↔ω, η↔ι↔υ). Keep the NFD approach for any
 //      script with combining diacritics; replace the phonetic map.
 //
-//   5. Save-warning type checks (~line 784)
+//   5. Save-warning type checks (~line 866)
 //      The expected-text-type logic in `checkSaveWarnings()`.
 //      Update the type labels and expected dirs for your fork.
 //
