@@ -21,21 +21,51 @@ The goal is to catch what the machine got wrong, not to type every page from scr
 
 > See [`gemini-prompt.txt`](gemini-prompt.txt) for the prompt used with Gemini to obtain polytonic Greek OCR output.
 
-## How it works
+## Book structure
+
+The program discovers scans and text directories by scanning the project directory you pass as argument. Here's how it works:
+
+### Scan directories
+
+Any **subdirectory whose name starts with `"scans"`** is treated as a scan directory:
+- `scans` — primary scan folder
+- `scans2`, `scans_backup`, etc. — additional scan sources
+
+The folder named exactly `scans` is always listed first. You can switch between them using the **source dropdown** in the toolbar.
+
+### Accepted image formats
+
+Only files with these extensions are recognised as page images:
+`.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`, `.tif`, `.tiff`
+
+Non-image files and nested subdirectories are ignored.
+
+### Text (OCR) directories
+
+The program looks for folders named exactly `ocr` and `el` (no prefix matching) under the project directory. These store the OCR text files — one `.txt` file per page.
+
+### Example layout
 
 ```
 project/
-├── scans/       # page images (jpg, png, webp, gif, tif)
+├── scans/                # page images (jpg, png, webp, gif, tif)
 │    ├── 011.jpg
-│    ├── 011b.jpg      ← multiple variants grouped by 3‑letter prefix
+│    ├── 011b.jpg         ← multiple variants grouped by 3‑letter prefix
 │    └── 012.jpg
-├── ocr/         # OCR text files (auto‑created, one per page)
+├── scans_clean/          # alternative scan source (optional)
+│    └── 011.jpg
+├── ocr/                  # OCR text files (auto‑created, one per page)
 │    ├── 011.txt
 │    └── 012.txt
-└── ...
+└── el/                   # modern Greek OCR text (optional)
+     └── 011.txt
 ```
 
-Pages sharing the same 3‑character prefix (e.g. `011.jpg`, `011b.jpg`) are grouped together. Use the **source dropdown** in the toolbar to switch between image variants while keeping the same text.
+Pages sharing the same 3‑character prefix (e.g. `011.jpg`, `011b.jpg`) are grouped together. Use the **source dropdown** to switch between image variants while keeping the same text.
+
+### Configuration
+
+There are **no environment variables, no config files, no CLI flags** for paths — it's all filesystem-based with the hardcoded `"scans"` prefix as described above.
 
 ## Quick start
 
