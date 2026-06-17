@@ -143,56 +143,15 @@ After editing the Go source, click the **Restart** button (or visit `http://loca
 
 No dependencies beyond the Go standard library. No `go.mod`, no build step — just `go run`.
 
-## Development and AI-assisted modification
-
-The entire application is a **single Go file** (`proofreader.go`) with the HTML, CSS, and JavaScript embedded in a Go string constant. This makes it an ideal target for AI-assisted modification:
-
-- **Describe the feature** you want in natural language to an AI code agent, paste the file, and let it propose the changes.
-- **Add a new keyboard shortcut** — one `if(isCtrl && code==="KeyX")` block in the `keydown` listener.
-- **Add a new toolbar button** — one HTML line in the toolbar section, one JS function.
-- **Modify the Greek character palette** — edit the `greekCharGroups` array.
-- **Extend the transliteration map** — add entries to `latinToGreek`.
-- **Port to another language/framework** — the logic is self-contained: a file watcher, an HTTP server, and a browser GUI. An AI agent can translate each layer while keeping the behaviour.
-
-The `localStorage` keys all start with `proofreader` — if you fork the tool, give it a custom prefix to avoid conflicts with other forks (search for `proofreader` in the JS and replace).
-
 ## Forking for another language
 
-This tool was built for polytonic Greek, but the **Go server is completely language-agnostic** — only the embedded frontend contains script-specific code. To fork it for any other writing system (Hebrew, Arabic, Cyrillic, Devanagari, etc.):
-
-### What stays the same (no changes needed)
-
-All Go server code, file discovery, image display, zoom/pan, save/load, page navigation, hot-restart, and line numbering — none of it knows or cares what script you're using.
-
-### What to replace
-
-| Component | Where in `proofreader.go` | What to do |
-|---|---|---|
-| **Character palette** | `greekCharGroups` array in the JS (~line 537) | Replace each group of characters with your script's letters and their diacritic variants. The leftmost button in each row is the base letter; the rest are variants. |
-| **Transliteration map** | `latinToGreek` object in the JS (~line 411) | Map Latin QWERTY keys to your script's base letters so users can type without switching keyboards. Set `forceGreek` to `false` if your script doesn't benefit from this. |
-| **Text detection** | `detectTextType()` function in the JS (~line 841) | Update the Unicode range checks to detect your script vs. Latin vs. other text. |
-| **Search** | `doFind()` function in the JS (~line 921) | Keep the NFD normalisation (strips combining marks) for any script with diacritics. Replace the phonetic-equivalence map (ο↔ω, η↔ι↔υ) with your own. |
-| **Save warnings** | `checkSaveWarnings()` in the JS (~line 866) | Update the text-type labels and expected directories for your script. |
-| **`localStorage` prefix** | All `proofreader*` keys in the JS | Replace `proofreader` with your own prefix (e.g. `hebrew-proofreader`). |
-
-### Step-by-step
+The **Go server is language-agnostic** — only the embedded frontend (character palette, transliteration map, text detection) is script-specific. To adapt this tool for Arabic, Hebrew, Cyrillic, or any other writing system:
 
 1. **Copy** `proofreader.go` → `your-fork.go`
-2. **Edit** the `indexHTML` constant (a Go string containing the whole frontend). Change the colour scheme, fonts, character palette, and transliteration map to suit your script.
-3. **Search and replace** the `localStorage` prefix: every `proofreader` in the JS → your custom prefix.
-4. **Update** `findGoSource()` in the Go server section (just before the embedded frontend) to look for `your-fork.go`.
-5. **Update** the HTML `<title>` and `document.title` to your project name.
-6. **Run** with `go run your-fork.go /path/to/project`.
+2. **Give it to an AI** — paste the file into any code agent (Claude, GPT, Gemini) or web AI chat tool and tell it what script you need. Since everything is in one self-contained file with clear section markers, the AI will understand the structure and make the changes.
+3. **Run** with `go run your-fork.go /path/to/project`.
 
-### Important: keep the contract
-
-The Go server calls specific JS function names and expects specific HTML element IDs (`editor`, `pageSelect`, `sourceSelect`, `findInput`, etc.). When rewriting the frontend, **preserve the IDs and function signatures** listed below — otherwise the server ↔ frontend communication will break:
-
-- Element IDs: `editor`, `pageSelect`, `sourceSelect`, `textSourceSelect`, `scan`, `findInput`, `findCount`, `status`, `lineNumbers`, `highlightOverlay`
-- JS functions called from Go template or inline handlers: `prevPage()`, `nextPage()`, `loadPage(idx)`, `saveText()`, `switchSource(val)`, `switchTextSource(val)`, `doFind()`, `toggleGreekPalette()`, `toggleEditMode()`
-- API endpoints (unchanged): `/api/list`, `/api/text`, `/api/save`, `/api/restart`, `/image/{page}`
-
-Everything else — layout, styling, keyboard shortcuts, palette position — is yours to redesign.
+No Go dependencies beyond the standard library, no build step — just Go installed.
 
 ---
 
