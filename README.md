@@ -46,20 +46,23 @@ The program looks for folders named exactly `ocr` and `el` (no prefix matching) 
 
 ### Example layout
 
+The repo comes with ready-to-use examples in the [`examples/`](examples/) directory:
+
 ```
 project/
 ├── scans/                # page images (jpg, png, webp, gif, tif)
-│    ├── 011.jpg
-│    ├── 011b.jpg         ← multiple variants grouped by 3‑letter prefix
-│    └── 012.jpg
-├── scans_clean/          # alternative scan source (optional)
-│    └── 011.jpg
-├── ocr/                  # OCR text files (auto‑created, one per page)
-│    ├── 011.txt
-│    └── 012.txt
+│    ├── 048.jpg
+│    ├── ...
+├── ocr/                  # OCR text files (one per page)
+│    ├── 048.txt
+│    └── ...
 └── el/                   # modern Greek OCR text (optional)
-     └── 011.txt
+     └── 048.txt
 ```
+
+Run `go run proofreader.go examples` to try it immediately.
+
+### Custom layout
 
 Pages sharing the same 3‑character prefix (e.g. `011.jpg`, `011b.jpg`) are grouped together. Use the **source dropdown** to switch between image variants while keeping the same text.
 
@@ -70,8 +73,12 @@ There are **no environment variables, no config files, no CLI flags** for paths 
 ## Quick start
 
 ```bash
-go run proofreader.go /path/to/project
+# Try it with the built-in examples
+go run proofreader.go examples
 # Open http://localhost:1888/
+
+# Or use your own project
+go run proofreader.go /path/to/project
 ```
 
 ## Features

@@ -266,6 +266,100 @@ func (a *App) handleSave(w http.ResponseWriter, r *http.Request) {
 }
 func writeJSON(w http.ResponseWriter, v any) { w.Header().Set("Content-Type", "application/json; charset=utf-8"); _ = json.NewEncoder(w).Encode(v) }
 
+func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
+	page := r.URL.Query().Get("page")
+	if page == "" {
+		http.Error(w, "page required", 400)
+		return
+	}
+	srcIdx := 0
+	if s := r.URL.Query().Get("source"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			srcIdx = v
+		}
+	}
+	textSrcIdx := 0
+	if s := r.URL.Query().Get("textSource"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			textSrcIdx = v
+		}
+	}
+
+	// Resolve the image and text paths
+	var imagePath string
+	if srcIdx >= 0 && srcIdx < len(a.ScanDirs) {
+		imagePath = filepath.Join(a.ProjectDir, a.ScanDirs[srcIdx], page)
+	}
+	var textPath string
+	if textSrcIdx >= 0 && textSrcIdx < len(a.TextDirs) && a.pageIndex(page) >= 0 {
+		textPath = a.txtPath(page, textSrcIdx)
+	}
+
+	// SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", 400)
+		return
+	}
+
+	// Last-known file info
+	type fileStat struct {
+		modTime time.Time
+		size    int64
+	}
+	var lastImage, lastText *fileStat
+	if imagePath != "" {
+		if fi, err := os.Stat(imagePath); err == nil {
+			lastImage = &fileStat{modTime: fi.ModTime(), size: fi.Size()}
+		}
+	}
+	if textPath != "" {
+		if fi, err := os.Stat(textPath); err == nil {
+			lastText = &fileStat{modTime: fi.ModTime(), size: fi.Size()}
+		}
+	}
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			if imagePath != "" {
+				if fi, err := os.Stat(imagePath); err == nil {
+					cur := &fileStat{modTime: fi.ModTime(), size: fi.Size()}
+					if lastImage == nil || !cur.modTime.Equal(lastImage.modTime) || cur.size != lastImage.size {
+						lastImage = cur
+						fmt.Fprintf(w, "event: image-changed\ndata: %d\n\n", cur.modTime.UnixMilli())
+						flusher.Flush()
+					}
+				} else {
+					lastImage = nil // file disappeared
+				}
+			}
+			if textPath != "" {
+				if fi, err := os.Stat(textPath); err == nil {
+					cur := &fileStat{modTime: fi.ModTime(), size: fi.Size()}
+					if lastText == nil || !cur.modTime.Equal(lastText.modTime) || cur.size != lastText.size {
+						lastText = cur
+						fmt.Fprintf(w, "event: text-changed\ndata: %d\n\n", cur.modTime.UnixMilli())
+						flusher.Flush()
+					}
+				} else {
+					lastText = nil
+				}
+			}
+		}
+	}
+}
+
 func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
         if a.restartCmd == nil {
                 http.Error(w, "restart not configured", 400)
@@ -407,6 +501,7 @@ const indexHTML = `<!doctype html>
 <script>
 let scanDirs=[], pages=[], page="", pageIndex=0, sourceIndex=0, textDirs=[], textSourceIndex=0, zoom=1.0, modified=false;
 let savedText="";
+let eventSource=null;
 let currentTitlePage="";
 const latinToGreek={'a':'α','b':'β','c':'ψ','d':'δ','e':'ε','f':'φ','g':'γ','h':'η','i':'ι','j':'ξ','k':'κ','l':'λ','m':'μ','n':'ν','o':'ο','p':'π','q':'ς','r':'ρ','s':'σ','t':'τ','u':'θ','v':'ω','x':'χ','y':'υ','z':'ζ'};
 let forceGreek = localStorage.getItem('proofreaderForceGreek') !== '0';
@@ -656,6 +751,7 @@ function toggleEditMode(){
 function switchSource(idx){
   sourceIndex = parseInt(idx);
   scan.src="/image/"+encodeURIComponent(page)+"?source="+sourceIndex+"&t="+Date.now();
+  connectEvents();
 }
 function rebuildSourceSelect(){
   const sources=pages[pageIndex] ? pages[pageIndex].sources : [];
@@ -678,6 +774,7 @@ function rebuildTextSourceSelect(){
 function switchTextSource(idx){
   textSourceIndex = parseInt(idx);
   if(page) loadTextForPage(page);
+  connectEvents();
 }
 async function init(){
   const data=await fetch("/api/list").then(r=>r.json());
@@ -736,6 +833,29 @@ async function loadTextForPage(name){
   editor.scrollTop=0;
   document.getElementById('highlightOverlay').scrollTop=0;
 }
+function connectEvents(){
+  if(eventSource){ eventSource.close(); eventSource=null; }
+  if(!page) return;
+  const url="/api/events?page="+encodeURIComponent(page)+"&source="+sourceIndex+"&textSource="+textSourceIndex;
+  eventSource = new EventSource(url);
+  eventSource.addEventListener("image-changed", () => {
+    scan.src="/image/"+encodeURIComponent(page)+"?source="+sourceIndex+"&t="+Date.now();
+  });
+  eventSource.addEventListener("text-changed", async () => {
+    const data=await fetch("/api/text?page="+encodeURIComponent(page)+"&source="+textSourceIndex).then(r=>r.json());
+    editor.value=data.text;
+    savedText=data.text;
+    modified=false;
+    updateTitle();
+    updateLineNumbers();
+    document.getElementById('findInput').value='';
+    findMatches=[]; findIndex=0;
+    document.getElementById('findCount').textContent='0';
+    document.getElementById('highlightOverlay').innerHTML='';
+    setStatus(page+" (reloaded from disk)");
+  });
+  eventSource.onerror = () => {};
+}
 async function loadPage(idx){
   const entry=pages[idx];
   if(!entry) return;
@@ -756,6 +876,7 @@ async function loadPage(idx){
   rebuildSourceSelect();
   rebuildTextSourceSelect();
   scan.onload = () => { if(!loadViewportState(name)) fitWidth(); };
+  connectEvents();
 }
 async function saveText(){
   if(!page) return;
@@ -1074,6 +1195,7 @@ func main() {
 
         http.HandleFunc("/", app.handleIndex)
         http.HandleFunc("/api/list", app.handleList)
+        http.HandleFunc("/api/events", app.handleEvents)
         http.HandleFunc("/api/text", app.handleText)
         http.HandleFunc("/api/save", app.handleSave)
         http.HandleFunc("/api/restart", app.handleRestart)
