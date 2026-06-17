@@ -1,0 +1,9 @@
+# Binaries
+proofreader
+*.exe
+*.test
+
+# Temp files
+*~
+*.swp
+*.swo
