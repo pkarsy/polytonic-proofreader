@@ -16,7 +16,7 @@
 //                                the `indexHTML` const (Go string)
 //   [main()]     ~lines 1053–1087 Entry point, route registration
 //
-// ── What is language-generic (no changes needed for a fork) ──────
+// ── What is script-generic (no changes needed for a fork) ──────
 //
 //   • Go HTTP server — serves images, text files, saves edits
 //   • File discovery — scans* dirs (images) + ocr/ dir (text)
@@ -31,7 +31,7 @@
 //   • Line numbering — skips metadata lines like [header]
 //   • Page grouping — images sharing a 3-char prefix are variants
 //
-// ── What is language-specific (replace for another script) ───────
+// ── What is script-specific (replace for another script) ───────
 //
 //   Inside the embedded frontend (indexHTML, ~lines 300–960):
 //
@@ -61,7 +61,7 @@
 //      The expected-text-type logic in `checkSaveWarnings()`.
 //      Update the type labels and expected dirs for your fork.
 //
-// ── How to fork for another language ─────────────────────────────
+// ── How to fork for another script ─────────────────────────────
 //
 //   1. Copy proofreader.go → your-fork.go
 //   2. Replace the `indexHTML` constant with a new frontend
