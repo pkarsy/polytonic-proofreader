@@ -463,7 +463,7 @@ const indexHTML = `<!doctype html>
   #settingsModal label { font-size:15px; user-select:none; }
   #settingsModal .btns { display:flex; gap:8px; justify-content:flex-end; }
   /* Disabled toolbar buttons */
-  #toolbar button:disabled { opacity:0.4; cursor:not-allowed; background:#555 !important; color:#ccc !important; }
+  #toolbar button:disabled { opacity:0.5; cursor:not-allowed; background:#444 !important; color:#aaa !important; }
   /* Greek character palette */
   #greekPalette { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:999; background:#2b2b2b; padding:12px; border-radius:8px; box-shadow:0 4px 24px rgba(0,0,0,0.6); max-height:80vh; overflow-y:auto; }
   #greekPalette.show { display:block; }
