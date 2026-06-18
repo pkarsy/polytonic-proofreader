@@ -462,6 +462,8 @@ const indexHTML = `<!doctype html>
   #settingsModal .box { background:#2b2b2b; padding:24px; border-radius:8px; min-width:260px; color:var(--text); font-family:system-ui,sans-serif; }
   #settingsModal label { font-size:15px; user-select:none; }
   #settingsModal .btns { display:flex; gap:8px; justify-content:flex-end; }
+  /* Disabled toolbar buttons */
+  #toolbar button:disabled { opacity:0.4; cursor:not-allowed; background:#555 !important; color:#ccc !important; }
   /* Greek character palette */
   #greekPalette { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:999; background:#2b2b2b; padding:12px; border-radius:8px; box-shadow:0 4px 24px rgba(0,0,0,0.6); max-height:80vh; overflow-y:auto; }
   #greekPalette.show { display:block; }
@@ -1249,8 +1251,6 @@ window.addEventListener("beforeunload", (e) => {
 init();
 {{if not .RestartAvailable}}
 document.getElementById('restartBtn').disabled = true;
-document.getElementById('restartBtn').style.background = '#555';
-document.getElementById('restartBtn').style.cursor = 'not-allowed';
 document.getElementById('restartBtn').title = 'Restart unavailable (go or source file not found)';
 {{end}}
 </script>
