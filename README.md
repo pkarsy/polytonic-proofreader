@@ -219,7 +219,7 @@ The book you are digitising is **unique**. Its script, its layout, its quirks �
 
 Everything is in one file, every feature is a few lines of JavaScript or Go away from being changed. No build tools, no recompilation step — just edit, save, and click **Restart**.
 
-## Forking for another language
+## Forking for another script
 
 The **Go server is language-agnostic** — only the embedded frontend (character palette, transliteration map, text detection) is script-specific. To adapt this tool for Arabic, Hebrew, Cyrillic, or any other writing system:
 
