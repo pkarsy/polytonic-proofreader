@@ -229,7 +229,8 @@ func (a *App) txtPath(page string, srcIdx int) string {
 
 func (a *App) handleIndex(w http.ResponseWriter, r *http.Request) {
         t := template.Must(template.New("index").Parse(indexHTML))
-        if err := t.Execute(w, nil); err != nil { http.Error(w, err.Error(), 500) }
+        avail := a.restartCmd != nil
+        if err := t.Execute(w, map[string]bool{"RestartAvailable": avail}); err != nil { http.Error(w, err.Error(), 500) }
 }
 func (a *App) handleList(w http.ResponseWriter, r *http.Request) {
         entries := make([]PageEntry, len(a.Pages))
@@ -376,7 +377,8 @@ func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
         if a.restartCmd == nil {
-                http.Error(w, "restart not configured", 400)
+                w.Header().Set("Content-Type", "text/html; charset=utf-8")
+                fmt.Fprint(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="2;url=/"><title>Restart unavailable</title><style>body{font-family:system-ui,sans-serif;padding:3em;text-align:center;background:#1e1e1e;color:#f0f0f0}h1{color:#e74c3c}</style></head><body><h1>Restart unavailable</h1><p>The Go binary or source file was not found when the server started.</p><p>Make sure <code>go</code> is installed and <code>proofreader.go</code> is present.</p><p>Returning to the editor…</p></body></html>`)
                 return
         }
         log.Printf("[%s] restart triggered via %s", time.Now().Format(time.RFC3339), r.RemoteAddr)
@@ -488,7 +490,7 @@ const indexHTML = `<!doctype html>
       <button onclick="copyAll()" style="font-size:14px;padding:4px 8px;margin-right:4px">Copy All</button>
       <button id="grCharBtn" onclick="toggleGreekPalette()" style="font-size:14px;padding:4px 8px;margin-right:4px" title="Polytonic Greek characters (Ctrl+P)">Greek Char</button>
       <button onclick="toggleSettings()" style="font-size:14px;padding:4px 8px;margin-right:4px" title="Settings">Settings</button>
-      <button onclick="window.location.href='/restart'" style="font-size:14px;padding:4px 8px;margin-right:4px;background:#8b0000;color:#fff" title="Restart server (recompile)">Restart</button>
+      <button id="restartBtn" onclick="window.location.href='/restart'" style="font-size:14px;padding:4px 8px;margin-right:4px;background:#8b0000;color:#fff" title="Restart server (recompile)">Restart</button>
       <label style="color:var(--text);font-size:14px;user-select:none;display:flex;align-items:center;gap:4px">
         <input type="checkbox" id="editToggle" onchange="toggleEditMode()"> Edit
       </label>
@@ -1245,6 +1247,12 @@ window.addEventListener("beforeunload", (e) => {
 });
 
 init();
+{{if not .RestartAvailable}}
+document.getElementById('restartBtn').disabled = true;
+document.getElementById('restartBtn').style.background = '#555';
+document.getElementById('restartBtn').style.cursor = 'not-allowed';
+document.getElementById('restartBtn').title = 'Restart unavailable (go or source file not found)';
+{{end}}
 </script>
 </body>
 </html>`
