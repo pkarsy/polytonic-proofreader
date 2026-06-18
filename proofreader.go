@@ -522,7 +522,7 @@ const indexHTML = `<!doctype html>
         <input type="checkbox" id="showLineNums" onchange="toggleLineNumbers()" checked> Lines
       </label>
       <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
-        <input type="checkbox" id="magToggle" onchange="toggleMagnifier()"> Magnifier
+        <input type="checkbox" id="magToggle" onchange="toggleMagnifier()"> Always-on magnifier
       </label>
       <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
         <input type="checkbox" id="forceGreekToggle" onchange="toggleForceGreek()" checked> Force Greek
@@ -557,6 +557,7 @@ let textScrollTop = 0;
 
 let imgX=0, imgY=0;
 let dragging=false, dragStartX=0, dragStartY=0, dragImgX=0, dragImgY=0;
+let magMidClick=false;
 let findTerm="", findMatches=[], findIndex=0;
 const scan=document.getElementById("scan"), editor=document.getElementById("editor"), statusEl=document.getElementById("status"), pageEl=document.getElementById("pageSelect"), sourceEl=document.getElementById("sourceSelect"), left=document.getElementById("left");
 
@@ -580,8 +581,10 @@ left.addEventListener("dblclick",(e)=>{ e.preventDefault(); if(Math.abs(zoom-1.0
 const mag = document.getElementById('magnifier');
 const MAG_ZOOM = 3;
 const MAG_SIZE = 130;
+function magShouldShow(){ return document.getElementById('magToggle').checked || magMidClick; }
+function updateMagActive(){ left.classList.toggle('mag-active', magShouldShow()); if(!magShouldShow()) mag.style.display='none'; }
 left.addEventListener("mousemove",(e)=>{
-  if(dragging||!scan.naturalWidth||!document.getElementById('magToggle').checked){ mag.style.display='none'; return; }
+  if(dragging||!scan.naturalWidth||!magShouldShow()){ mag.style.display='none'; return; }
   const rect=left.getBoundingClientRect();
   const mx=e.clientX-rect.left, my=e.clientY-rect.top;
   mag.style.left=(mx-MAG_SIZE/2)+'px';
@@ -593,6 +596,7 @@ left.addEventListener("mousemove",(e)=>{
   mag.style.display='block';
 });
 left.addEventListener("mouseleave",()=>{ mag.style.display='none'; });
+left.addEventListener("mousedown",(e)=>{ if(e.button!==1) return; e.preventDefault(); magMidClick=!magMidClick; updateMagActive(); });
 
 // -------------------------
 // TEXT PANE
@@ -810,8 +814,8 @@ function toggleSettings(){
 }
 function toggleMagnifier(){
   const on = document.getElementById('magToggle').checked;
-  left.classList.toggle('mag-active', on);
-  if(!on) document.getElementById('magnifier').style.display='none';
+  if(on) magMidClick=false; // always-on takes precedence, clear mid-click
+  updateMagActive();
   localStorage.setItem('proofreaderMagnifier', on ? '1' : '0');
 }
 function switchSource(idx){
@@ -862,8 +866,8 @@ async function init(){
   const savedMag = localStorage.getItem('proofreaderMagnifier');
   if(savedMag === '1'){
     document.getElementById('magToggle').checked = true;
-    left.classList.add('mag-active');
   }
+  updateMagActive();
   buildGreekPalette();
   rebuildTextSourceSelect();
   const savedKey = localStorage.getItem("proofreaderLastPage");
