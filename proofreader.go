@@ -454,6 +454,12 @@ const indexHTML = `<!doctype html>
   #saveWarnModal p { margin:0 0 16px; font-size:15px; line-height:1.4; }
   #saveWarnModal .btns { display:flex; gap:8px; justify-content:flex-end; }
   #saveWarnModal button { min-width:70px; }
+  /* Settings modal */
+  #settingsModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
+  #settingsModal.show { display:flex; }
+  #settingsModal .box { background:#2b2b2b; padding:24px; border-radius:8px; min-width:260px; color:var(--text); font-family:system-ui,sans-serif; }
+  #settingsModal label { font-size:15px; user-select:none; }
+  #settingsModal .btns { display:flex; gap:8px; justify-content:flex-end; }
   /* Greek character palette */
   #greekPalette { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:999; background:#2b2b2b; padding:12px; border-radius:8px; box-shadow:0 4px 24px rgba(0,0,0,0.6); max-height:80vh; overflow-y:auto; }
   #greekPalette.show { display:block; }
@@ -481,21 +487,10 @@ const indexHTML = `<!doctype html>
       <button onclick="saveText()" style="font-size:14px;padding:4px 8px">Save</button>
       <button onclick="copyAll()" style="font-size:14px;padding:4px 8px;margin-right:4px">Copy All</button>
       <button id="grCharBtn" onclick="toggleGreekPalette()" style="font-size:14px;padding:4px 8px;margin-right:4px" title="Polytonic Greek characters (Ctrl+P)">Greek Char</button>
+      <button onclick="toggleSettings()" style="font-size:14px;padding:4px 8px;margin-right:4px" title="Settings">Settings</button>
       <button onclick="window.location.href='/restart'" style="font-size:14px;padding:4px 8px;margin-right:4px;background:#8b0000;color:#fff" title="Restart server (recompile)">Restart</button>
       <label style="color:var(--text);font-size:14px;user-select:none;display:flex;align-items:center;gap:4px">
         <input type="checkbox" id="editToggle" onchange="toggleEditMode()"> Edit
-      </label>
-      <label style="color:var(--text);font-size:14px;user-select:none;display:flex;align-items:center;gap:4px">
-        <input type="checkbox" id="showLineNums" onchange="toggleLineNumbers()" checked> Lines
-      </label>
-      <label style="color:var(--text);font-size:14px;user-select:none;display:flex;align-items:center;gap:4px">
-        <input type="checkbox" id="magToggle" onchange="toggleMagnifier()"> Magnifier
-      </label>
-      <label style="color:var(--text);font-size:14px;user-select:none;display:flex;align-items:center;gap:4px">
-        <input type="checkbox" id="forceGreekToggle" onchange="toggleForceGreek()" checked> Force Greek
-      </label>
-      <label style="color:var(--text);font-size:14px;user-select:none;display:flex;align-items:center;gap:4px">
-        <input type="checkbox" id="digraphToggle" onchange="toggleDigraph()" checked> Digraph matching
       </label>
     </span>
     <span id="status"></span>
@@ -520,6 +515,24 @@ const indexHTML = `<!doctype html>
     </div>
   </div>
   <div id="greekPalette"></div>
+  <div id="settingsModal">
+    <div class="box">
+      <p style="font-size:16px;font-weight:bold;margin:0 0 12px">Settings</p>
+      <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
+        <input type="checkbox" id="showLineNums" onchange="toggleLineNumbers()" checked> Lines
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
+        <input type="checkbox" id="magToggle" onchange="toggleMagnifier()"> Magnifier
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
+        <input type="checkbox" id="forceGreekToggle" onchange="toggleForceGreek()" checked> Force Greek
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
+        <input type="checkbox" id="digraphToggle" onchange="toggleDigraph()" checked> Digraph matching
+      </label>
+      <div class="btns" style="margin-top:12px"><button onclick="toggleSettings()">Close</button></div>
+    </div>
+  </div>
   <div id="main">
     <div id="left"><img id="scan" draggable="false"><div class="magnifier" id="magnifier"></div></div>
     <div id="right"><div id="lineNumbers"></div><div id="editorWrap"><div id="highlightOverlay"></div><textarea id="editor" spellcheck="false"></textarea></div></div>
@@ -791,6 +804,9 @@ function toggleEditMode(){
   editor.style.userSelect = edit ? '' : 'none';
   document.getElementById('right').classList.toggle('edit-off', !edit);
   document.getElementById('grCharBtn').disabled = !edit;
+}
+function toggleSettings(){
+  document.getElementById('settingsModal').classList.toggle('show');
 }
 function toggleMagnifier(){
   const on = document.getElementById('magToggle').checked;
