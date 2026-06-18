@@ -44,6 +44,8 @@ Non-image files and nested subdirectories are ignored.
 
 The program looks for folders named exactly `ocr` and `el` (no prefix matching) under the project directory. These store the OCR text files — one `.txt` file per page.
 
+If neither `ocr` nor `el` exists, the program **automatically creates** `ocr/` after validating that the scans structure is present.
+
 ### Example layout
 
 The repo comes with ready-to-use examples in the [`examples/`](examples/) directory:
@@ -60,7 +62,7 @@ project/
      └── 048.txt
 ```
 
-Run `go run proofreader.go examples` to try it immediately.
+Run `go run proofreader.go examples` to try it immediately (use `-p 1889` to pick a different port).
 
 ### Custom layout
 
@@ -68,7 +70,16 @@ Pages sharing the same 3‑character prefix (e.g. `011.jpg`, `011b.jpg`) are gro
 
 ### Configuration
 
-There are **no environment variables, no config files, no CLI flags** for paths — it's all filesystem-based with the hardcoded `"scans"` prefix as described above.
+There are **no environment variables, no config files** for paths — it's all filesystem-based with the hardcoded `"scans"` prefix as described above.
+
+### Port
+
+The server runs on port **1888** by default. Use the `-p` / `--port` flag to change it:
+
+```bash
+go run proofreader.go -p 1889 examples
+# Open http://localhost:1889/
+```
 
 ## Quick start
 
@@ -79,6 +90,9 @@ go run proofreader.go examples
 
 # Or use your own project
 go run proofreader.go /path/to/project
+
+# Use a different port
+go run proofreader.go -p 1889 /path/to/project
 ```
 
 ## Features
@@ -155,7 +169,7 @@ Use the **source dropdown** (between the page selector and the text source) to s
 Use the **text source dropdown** (next to the image source) to switch between multiple OCR sources — e.g. `ocr` (polytonic Greek) and `el` (modern Greek). This allows comparing or saving to different text directories.
 
 ### Server restart (hot‑reload)
-After editing the Go source, click the **Restart** button (or visit `http://localhost:1888/restart`) to recompile and restart the server in-place. The browser automatically refreshes after 1 second — no need to restart the terminal command.
+After editing the Go source, click the **Restart** button (or visit `/restart`) to recompile and restart the server in-place. The browser automatically refreshes after 1 second — no need to restart the terminal command.
 
 ## Keyboard shortcuts
 

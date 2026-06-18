@@ -107,7 +107,6 @@ import (
 
 // ──── Types ────
 
-const port = "1888"
 
 type App struct {
         ProjectDir  string
@@ -116,6 +115,7 @@ type App struct {
         Pages       []string
         pageSources map[string][]int
         restartCmd  []string
+        SourcePath  string // absolute path to proofreader.go
 }
 
 type PageEntry struct {
@@ -158,8 +158,6 @@ func NewApp(projectDir string) (*App, error) {
         projectDir, err := filepath.Abs(projectDir)
         if err != nil { return nil, err }
         app := &App{ProjectDir: projectDir}
-        ocrDir := filepath.Join(projectDir, "ocr")
-        if err := os.MkdirAll(ocrDir, 0755); err != nil { return nil, err }
 
         // Discover all scans* directories (no subdirectories inside them)
         entries, err := os.ReadDir(projectDir)
@@ -193,12 +191,28 @@ func NewApp(projectDir string) (*App, error) {
         }
         sort.Strings(app.Pages)
 
-        // Discover text directories (ocr, el — in this order, only those that exist)
+        if len(app.ScanDirs) == 0 {
+                return nil, fmt.Errorf("no 'scans*' directory found in %s -- create a folder named 'scans' with page images", app.ProjectDir)
+        }
+        if len(app.Pages) == 0 {
+                return nil, fmt.Errorf("no image files found in %v -- place at least one .jpg/.png/.webp/.gif/.tif file inside a 'scans' folder", app.ScanDirs)
+        }
+
+        // Auto-create missing text directory (ocr or el)
         for _, name := range []string{"ocr", "el"} {
                 full := filepath.Join(projectDir, name)
                 if info, err := os.Stat(full); err == nil && info.IsDir() {
                         app.TextDirs = append(app.TextDirs, name)
                 }
+        }
+        if len(app.TextDirs) == 0 {
+                // Neither exists — create ocr/ as default
+                ocrDir := filepath.Join(projectDir, "ocr")
+                if err := os.MkdirAll(ocrDir, 0755); err != nil {
+                        return nil, fmt.Errorf("cannot create 'ocr' directory: %w", err)
+                }
+                app.TextDirs = append(app.TextDirs, "ocr")
+                fmt.Printf("Created missing 'ocr' directory: %s\n", ocrDir)
         }
         return app, nil
 }
@@ -380,11 +394,17 @@ func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
 
 // ──── Restart helper ────
 
-func findGoSource() string {
-        for _, c := range []string{"proofreader.go"} {
-                if _, err := os.Stat(c); err == nil {
-                        return c
+func findGoSource(projectDir string) string {
+        // Try current working directory first
+        if fp, err := filepath.Abs("proofreader.go"); err == nil {
+                if _, err := os.Stat(fp); err == nil {
+                        return fp
                 }
+        }
+        // Try parent of the absolute project directory
+        candidate := filepath.Join(projectDir, "..", "proofreader.go")
+        if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+                return candidate
         }
         return ""
 }
@@ -1172,16 +1192,34 @@ init();
 // ──── Entry point ────
 
 func main() {
+        port := "1888"
         projectDir := "."
-        if len(os.Args) >= 2 { projectDir = os.Args[1] }
+        explicitDir := false
+        for i := 1; i < len(os.Args); i++ {
+                arg := os.Args[i]
+                if arg == "-p" || arg == "--port" {
+                        if i+1 < len(os.Args) {
+                                port = os.Args[i+1]
+                                i++
+                        }
+                } else {
+                        projectDir = arg
+                        explicitDir = true
+                }
+        }
         app, err := NewApp(projectDir)
         if err != nil { log.Fatal(err) }
 
+        if !explicitDir {
+                fmt.Printf("Using %s as book directory\n", app.ProjectDir)
+        }
+
         goBin, err := exec.LookPath("go")
         if err == nil {
-                src := findGoSource()
+                src := findGoSource(app.ProjectDir)
                 if src != "" {
-                        cmd := []string{goBin, "run", src}
+                        app.SourcePath = src
+                        cmd := []string{goBin, "run", src, "-p", port}
                         if projectDir != "." {
                                 cmd = append(cmd, projectDir)
                         }
