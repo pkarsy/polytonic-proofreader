@@ -427,6 +427,8 @@ const indexHTML = `<!doctype html>
   #left,#right { min-width:0; min-height:0; }
   #left { background:#333; overflow:hidden; border-right:1px solid var(--border); position:relative; cursor:grab; }
   #left.dragging { cursor:grabbing; }
+  #left.dragging .magnifier { display:none; }
+  .magnifier { display:none; position:absolute; width:130px; height:130px; border-radius:50%; border:2px solid rgba(255,255,255,0.7); box-shadow:0 0 12px rgba(0,0,0,0.5); pointer-events:none; z-index:10; background-repeat:no-repeat; }
   #scan { position:absolute; left:0; top:0; transform-origin:top left; max-width:none; user-select:none; -webkit-user-drag:none; }
   #right { display:flex; flex-direction:row; background:var(--panel); }
   #right.hide-linenums #lineNumbers { display:none; }
@@ -515,7 +517,7 @@ const indexHTML = `<!doctype html>
   </div>
   <div id="greekPalette"></div>
   <div id="main">
-    <div id="left"><img id="scan" draggable="false"></div>
+    <div id="left"><img id="scan" draggable="false"><div class="magnifier" id="magnifier"></div></div>
     <div id="right"><div id="lineNumbers"></div><div id="editorWrap"><div id="highlightOverlay"></div><textarea id="editor" spellcheck="false"></textarea></div></div>
   </div>
 <script>
@@ -556,6 +558,24 @@ left.addEventListener("mousedown",(e)=>{ if(e.button!==0) return; dragging=true;
 window.addEventListener("mousemove",(e)=>{ if(!dragging) return; imgX=dragImgX+(e.clientX-dragStartX); imgY=dragImgY+(e.clientY-dragStartY); applyTransform(); });
 window.addEventListener("mouseup",()=>{ dragging=false; left.classList.remove("dragging"); });
 left.addEventListener("dblclick",(e)=>{ e.preventDefault(); if(Math.abs(zoom-1.0)<0.05) fitWidth(); else zoomAt(e.clientX,e.clientY,1.0/zoom); });
+
+// ──── Magnifier ────
+const mag = document.getElementById('magnifier');
+const MAG_ZOOM = 3;
+const MAG_SIZE = 130;
+left.addEventListener("mousemove",(e)=>{
+  if(dragging||!scan.naturalWidth){ mag.style.display='none'; return; }
+  const rect=left.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  mag.style.left=(mx-MAG_SIZE/2)+'px';
+  mag.style.top=(my-MAG_SIZE/2)+'px';
+  const mz=zoom*MAG_ZOOM;
+  mag.style.backgroundImage="url('"+scan.src+"')";
+  mag.style.backgroundSize=scan.naturalWidth*mz+'px '+scan.naturalHeight*mz+'px';
+  mag.style.backgroundPosition=(-(mx-imgX)*MAG_ZOOM+MAG_SIZE/2)+'px '+(-(my-imgY)*MAG_ZOOM+MAG_SIZE/2)+'px';
+  mag.style.display='block';
+});
+left.addEventListener("mouseleave",()=>{ mag.style.display='none'; });
 
 // -------------------------
 // TEXT PANE
