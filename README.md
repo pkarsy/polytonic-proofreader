@@ -194,6 +194,31 @@ After editing the Go source, click the **Restart** button (or visit `/restart`) 
 
 No dependencies beyond the Go standard library. No `go.mod`, no build step — just `go run`.
 
+## Why there is no need for binaries
+
+This program is distributed as **source code only** — no precompiled binaries, no installers. You get the Go compiler, and you're ready to go.
+
+### Install the Go compiler
+
+```bash
+# Debian / Ubuntu
+sudo apt update && sudo apt install golang-go
+```
+
+That's it. After installation, `go run proofreader.go /path/to/book` starts the editor.
+
+### The real reason: customisation
+
+The book you are digitising is **unique**. Its script, its layout, its quirks — no binary could anticipate them all. By keeping the program as a single editable source file, you — or any AI coding agent — can:
+
+- **Change the character palette** — add or remove diacritic combinations specific to your book's orthography
+- **Adapt the transliteration map** — re-map keyboard keys for your script's letters
+- **Tweak the search behaviour** — add or remove digraph equivalences for historical spellings
+- **Modify the save logic** — add book-specific metadata headers or annotation conventions
+- **Add entirely new buttons** — anything from "Insert page number" to "Export to Markdown"
+
+Everything is in one file, every feature is a few lines of JavaScript or Go away from being changed. No build tools, no recompilation step — just edit, save, and click **Restart**.
+
 ## Forking for another language
 
 The **Go server is language-agnostic** — only the embedded frontend (character palette, transliteration map, text detection) is script-specific. To adapt this tool for Arabic, Hebrew, Cyrillic, or any other writing system:
