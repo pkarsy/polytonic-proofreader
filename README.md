@@ -7,6 +7,8 @@ A browser-based polytonic Greek OCR proofreader.
 > The TCP port `1888` is the year of printing; the name was generalised
 > because polytonic Greek OCR is a broader need. You review scanned pages side-by-side with their OCR output, correct the text, and save — all from a browser tab next to your AI/OCR tool.
 
+![Polytonic Proofreader screenshot](screenshot.jpg)
+
 ## Workflow
 
 1. **Place page images** — put your scanned page images (JPG, PNG, WebP, GIF, TIF) into the `scans/` folder inside your project directory.
@@ -94,8 +96,6 @@ go run proofreader.go /path/to/project
 # Use a different port
 go run proofreader.go -p 1889 /path/to/project
 ```
-
-![Polytonic Proofreader screenshot](screenshot.jpg)
 
 ## Features
 
