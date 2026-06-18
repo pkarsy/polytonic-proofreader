@@ -557,7 +557,6 @@ let textScrollTop = 0;
 
 let imgX=0, imgY=0;
 let dragging=false, dragStartX=0, dragStartY=0, dragImgX=0, dragImgY=0;
-let magMidClick=false;
 let findTerm="", findMatches=[], findIndex=0;
 const scan=document.getElementById("scan"), editor=document.getElementById("editor"), statusEl=document.getElementById("status"), pageEl=document.getElementById("pageSelect"), sourceEl=document.getElementById("sourceSelect"), left=document.getElementById("left");
 
@@ -581,7 +580,7 @@ left.addEventListener("dblclick",(e)=>{ e.preventDefault(); if(Math.abs(zoom-1.0
 const mag = document.getElementById('magnifier');
 const MAG_ZOOM = 3;
 const MAG_SIZE = 130;
-function magShouldShow(){ return document.getElementById('magToggle').checked || magMidClick; }
+function magShouldShow(){ return document.getElementById('magToggle').checked; }
 function updateMagActive(){ left.classList.toggle('mag-active', magShouldShow()); if(!magShouldShow()) mag.style.display='none'; }
 left.addEventListener("mousemove",(e)=>{
   if(dragging||!scan.naturalWidth||!magShouldShow()){ mag.style.display='none'; return; }
@@ -596,7 +595,7 @@ left.addEventListener("mousemove",(e)=>{
   mag.style.display='block';
 });
 left.addEventListener("mouseleave",()=>{ mag.style.display='none'; });
-left.addEventListener("mousedown",(e)=>{ if(e.button!==1) return; e.preventDefault(); magMidClick=!magMidClick; updateMagActive(); });
+left.addEventListener("mousedown",(e)=>{ if(e.button!==1) return; e.preventDefault(); var cb=document.getElementById('magToggle'); cb.checked=!cb.checked; toggleMagnifier(); });
 
 // -------------------------
 // TEXT PANE
@@ -767,6 +766,12 @@ window.addEventListener("keydown",async(e)=>{
     return false;
   }
 
+  if(isCtrl && code==="KeyM"){
+    e.preventDefault();
+    document.getElementById('magToggle').click();
+    return false;
+  }
+
   if(isCtrl && code==="KeyD"){
     e.preventDefault();
     document.getElementById('digraphToggle').click();
@@ -814,7 +819,6 @@ function toggleSettings(){
 }
 function toggleMagnifier(){
   const on = document.getElementById('magToggle').checked;
-  if(on) magMidClick=false; // always-on takes precedence, clear mid-click
   updateMagActive();
   localStorage.setItem('proofreaderMagnifier', on ? '1' : '0');
 }

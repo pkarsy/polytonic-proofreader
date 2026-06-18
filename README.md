@@ -178,6 +178,7 @@ After editing the Go source, click the **Restart** button (or visit `/restart`) 
 | **Ctrl+E** | Toggle edit mode |
 | **Ctrl+F** | Focus search box |
 | **Ctrl+G** | Toggle Force Greek |
+| **Ctrl+M** | Toggle magnifier |
 | **Ctrl+D** | Toggle digraph matching |
 | **Ctrl+P** | Open Greek character palette |
 | **Ctrl+S** | Save current page |
