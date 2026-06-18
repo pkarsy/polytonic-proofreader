@@ -397,61 +397,13 @@ func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
 
 // ──── Restart helper ────
 
-func findGoSource(projectDir string) string {
-        // Walk up from current directory looking for proofreader.go
-        if p := walkUpForFile("proofreader.go"); p != "" {
-                return p
-        }
-        // Walk up from the project directory
-        if p := walkUpForFileFrom(projectDir); p != "" {
-                return p
-        }
-        // Last resort: use runtime.Caller to find the actual source path
-        if p := getSourceFromCaller(); p != "" {
-                return p
-        }
-        return ""
-}
-
-func walkUpForFile(name string) string {
-        dir, _ := os.Getwd()
-        for dir != "" {
-                candidate := filepath.Join(dir, name)
-                if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-                        return candidate
-                }
-                parent := filepath.Dir(dir)
-                if parent == dir {
-                        break
-                }
-                dir = parent
-        }
-        return ""
-}
-
-func walkUpForFileFrom(startDir string) string {
-        dir := startDir
-        for dir != "" {
-                candidate := filepath.Join(dir, "proofreader.go")
-                if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-                        return candidate
-                }
-                parent := filepath.Dir(dir)
-                if parent == dir {
-                        break
-                }
-                dir = parent
-        }
-        return ""
-}
-
-func getSourceFromCaller() string {
-        // runtime.Caller(0) in the caller's frame gives this file's path
+func findGoSource() string {
+        // Use runtime.Caller to find this source file's directory,
+        // then look for proofreader.go there and in parent dirs.
         _, file, _, ok := runtime.Caller(0)
         if !ok {
                 return ""
         }
-        // We're inside getSourceFromCaller, walk up for proofreader.go
         dir := filepath.Dir(file)
         for dir != "" {
                 candidate := filepath.Join(dir, "proofreader.go")
@@ -1340,7 +1292,7 @@ func main() {
 
         goBin, err := exec.LookPath("go")
         if err == nil {
-                src := findGoSource(app.ProjectDir)
+                src := findGoSource()
                 if src != "" {
                         app.SourcePath = src
                         cmd := []string{goBin, "run", src, "-p", port}
