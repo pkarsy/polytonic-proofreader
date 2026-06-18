@@ -427,8 +427,9 @@ const indexHTML = `<!doctype html>
   #left,#right { min-width:0; min-height:0; }
   #left { background:#333; overflow:hidden; border-right:1px solid var(--border); position:relative; cursor:grab; }
   #left.dragging { cursor:grabbing; }
-  #left.dragging .magnifier { display:none; }
-  .magnifier { display:none; position:absolute; width:130px; height:130px; border-radius:50%; border:2px solid rgba(255,255,255,0.7); box-shadow:0 0 12px rgba(0,0,0,0.5); pointer-events:none; z-index:10; background-repeat:no-repeat; }
+  #left.mag-active { cursor:none; }
+  #left.dragging .magnifier { display:none !important; }
+  .magnifier { display:none; position:absolute; width:160px; height:120px; border:2px solid rgba(255,255,255,0.7); box-shadow:0 0 12px rgba(0,0,0,0.5); pointer-events:none; z-index:10; background-repeat:no-repeat; }
   #scan { position:absolute; left:0; top:0; transform-origin:top left; max-width:none; user-select:none; -webkit-user-drag:none; }
   #right { display:flex; flex-direction:row; background:var(--panel); }
   #right.hide-linenums #lineNumbers { display:none; }
@@ -486,6 +487,9 @@ const indexHTML = `<!doctype html>
       </label>
       <label style="color:var(--text);font-size:14px;user-select:none;display:flex;align-items:center;gap:4px">
         <input type="checkbox" id="showLineNums" onchange="toggleLineNumbers()" checked> Lines
+      </label>
+      <label style="color:var(--text);font-size:14px;user-select:none;display:flex;align-items:center;gap:4px">
+        <input type="checkbox" id="magToggle" onchange="toggleMagnifier()"> Magnifier
       </label>
       <label style="color:var(--text);font-size:14px;user-select:none;display:flex;align-items:center;gap:4px">
         <input type="checkbox" id="forceGreekToggle" onchange="toggleForceGreek()" checked> Force Greek
@@ -564,7 +568,7 @@ const mag = document.getElementById('magnifier');
 const MAG_ZOOM = 3;
 const MAG_SIZE = 130;
 left.addEventListener("mousemove",(e)=>{
-  if(dragging||!scan.naturalWidth){ mag.style.display='none'; return; }
+  if(dragging||!scan.naturalWidth||!document.getElementById('magToggle').checked){ mag.style.display='none'; return; }
   const rect=left.getBoundingClientRect();
   const mx=e.clientX-rect.left, my=e.clientY-rect.top;
   mag.style.left=(mx-MAG_SIZE/2)+'px';
@@ -788,6 +792,12 @@ function toggleEditMode(){
   document.getElementById('right').classList.toggle('edit-off', !edit);
   document.getElementById('grCharBtn').disabled = !edit;
 }
+function toggleMagnifier(){
+  const on = document.getElementById('magToggle').checked;
+  left.classList.toggle('mag-active', on);
+  if(!on) document.getElementById('magnifier').style.display='none';
+  localStorage.setItem('proofreaderMagnifier', on ? '1' : '0');
+}
 function switchSource(idx){
   sourceIndex = parseInt(idx);
   scan.src="/image/"+encodeURIComponent(page)+"?source="+sourceIndex+"&t="+Date.now();
@@ -832,6 +842,12 @@ async function init(){
   document.getElementById('forceGreekToggle').checked = forceGreek;
   // Restore Digraph matching checkbox state
   document.getElementById('digraphToggle').checked = digraphMatch;
+  // Restore Magnifier checkbox state
+  const savedMag = localStorage.getItem('proofreaderMagnifier');
+  if(savedMag === '1'){
+    document.getElementById('magToggle').checked = true;
+    left.classList.add('mag-active');
+  }
   buildGreekPalette();
   rebuildTextSourceSelect();
   const savedKey = localStorage.getItem("proofreaderLastPage");
