@@ -95,6 +95,8 @@ go run proofreader.go /path/to/project
 go run proofreader.go -p 1889 /path/to/project
 ```
 
+![Polytonic Proofreader screenshot](screenshot.jpg)
+
 ## Features
 
 ### Side-by-side view
