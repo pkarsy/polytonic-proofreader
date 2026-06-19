@@ -564,30 +564,30 @@ const indexHTML = `<!doctype html>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div>
           <p style="font-weight:bold;margin:0 0 6px;color:#8cf">Image pane (left)</p>
-          <table style="font-size:13px;width:100%">
-            <tr><td style="padding:2px 4px">Drag</td><td style="padding:2px 4px;color:#aaa">Pan image</td></tr>
-            <tr><td style="padding:2px 4px">Wheel</td><td style="padding:2px 4px;color:#aaa">Scroll vertically</td></tr>
-            <tr><td style="padding:2px 4px">Ctrl+Wheel</td><td style="padding:2px 4px;color:#aaa">Zoom in / out</td></tr>
-            <tr><td style="padding:2px 4px">Double-click</td><td style="padding:2px 4px;color:#aaa">Fit width / 100%</td></tr>
-            <tr><td style="padding:2px 4px">Middle-click</td><td style="padding:2px 4px;color:#aaa">Toggle magnifier</td></tr>
+          <table style="font-size:15px;width:100%">
+            <tr><td style="padding:2px 6px">Drag</td><td style="padding:2px 6px;color:#aaa">Pan image</td></tr>
+            <tr><td style="padding:2px 6px">Wheel</td><td style="padding:2px 6px;color:#aaa">Scroll vertically</td></tr>
+            <tr><td style="padding:2px 6px">Ctrl+Wheel</td><td style="padding:2px 6px;color:#aaa">Zoom in / out</td></tr>
+            <tr><td style="padding:2px 6px">Double-click</td><td style="padding:2px 6px;color:#aaa">Fit width / 100%</td></tr>
+            <tr><td style="padding:2px 6px">Middle-click</td><td style="padding:2px 6px;color:#aaa">Toggle magnifier</td></tr>
           </table>
         </div>
         <div>
           <p style="font-weight:bold;margin:0 0 6px;color:#8cf">Text pane (right)</p>
-          <table style="font-size:13px;width:100%">
-            <tr><td style="padding:2px 4px">Wheel</td><td style="padding:2px 4px;color:#aaa">Scroll text</td></tr>
-            <tr><td style="padding:2px 4px">Ctrl+Wheel</td><td style="padding:2px 4px;color:#aaa">Change font size</td></tr>
-            <tr><td style="padding:2px 4px">Drag</td><td style="padding:2px 4px;color:#aaa">Scroll text</td></tr>
-            <tr><td style="padding:2px 4px">Click</td><td style="padding:2px 4px;color:#aaa">Cursor placement</td></tr>
+          <table style="font-size:15px;width:100%">
+            <tr><td style="padding:2px 6px">Wheel</td><td style="padding:2px 6px;color:#aaa">Scroll text</td></tr>
+            <tr><td style="padding:2px 6px">Ctrl+Wheel</td><td style="padding:2px 6px;color:#aaa">Change font size</td></tr>
+            <tr><td style="padding:2px 6px">Drag</td><td style="padding:2px 6px;color:#aaa">Scroll text</td></tr>
+            <tr><td style="padding:2px 6px">Click</td><td style="padding:2px 6px;color:#aaa">Cursor placement</td></tr>
           </table>
         </div>
       </div>
       <p style="font-weight:bold;margin:10px 0 6px;color:#8cf">Global shortcuts</p>
-      <table style="font-size:13px;width:100%;max-width:400px">
-        <tr><td style="padding:2px 8px;white-space:nowrap">Ctrl+S</td><td style="padding:2px 8px;color:#aaa">Save page</td><td style="padding:2px 8px;white-space:nowrap">Ctrl+E</td><td style="padding:2px 8px;color:#aaa">Toggle edit</td></tr>
-        <tr><td style="padding:2px 8px;white-space:nowrap">Ctrl+F</td><td style="padding:2px 8px;color:#aaa">Focus search</td><td style="padding:2px 8px;white-space:nowrap">Ctrl+P</td><td style="padding:2px 8px;color:#aaa">Greek palette</td></tr>
-        <tr><td style="padding:2px 8px;white-space:nowrap">Ctrl+G</td><td style="padding:2px 8px;color:#aaa">Force Greek</td><td style="padding:2px 8px;white-space:nowrap">Ctrl+M</td><td style="padding:2px 8px;color:#aaa">Magnifier</td></tr>
-        <tr><td style="padding:2px 8px;white-space:nowrap">Ctrl+D</td><td style="padding:2px 8px;color:#aaa">Digraph match</td><td style="padding:2px 8px;white-space:nowrap">Ctrl+Z/Y</td><td style="padding:2px 8px;color:#aaa">Undo / Redo</td></tr>
+      <table style="font-size:15px;width:100%;max-width:420px">
+        <tr><td style="padding:3px 10px;white-space:nowrap">Ctrl+S</td><td style="padding:3px 10px;color:#aaa">Save page</td><td style="padding:3px 10px;white-space:nowrap">Ctrl+E</td><td style="padding:3px 10px;color:#aaa">Toggle edit</td></tr>
+        <tr><td style="padding:3px 10px;white-space:nowrap">Ctrl+F</td><td style="padding:3px 10px;color:#aaa">Focus search</td><td style="padding:3px 10px;white-space:nowrap">Ctrl+P</td><td style="padding:3px 10px;color:#aaa">Greek palette</td></tr>
+        <tr><td style="padding:3px 10px;white-space:nowrap">Ctrl+G</td><td style="padding:3px 10px;color:#aaa">Force Greek</td><td style="padding:3px 10px;white-space:nowrap">Ctrl+M</td><td style="padding:3px 10px;color:#aaa">Magnifier</td></tr>
+        <tr><td style="padding:3px 10px;white-space:nowrap">Ctrl+D</td><td style="padding:3px 10px;color:#aaa">Digraph match</td><td style="padding:3px 10px;white-space:nowrap">Ctrl+Z/Y</td><td style="padding:3px 10px;color:#aaa">Undo / Redo</td></tr>
       </table>
       <div class="btns" style="margin-top:12px"><button onclick="toggleHelp()">Close</button></div>
     </div>
