@@ -4,25 +4,25 @@ A browser-based polytonic Greek OCR proofreader.
 
 > Originally created for proofreading **ΤΟ ΣΥΜΠΑΝ (THE UNIVERSE)** (Smyrna, 1888) —
 > a family heirloom the author wanted to digitise and read.
-> The TCP port `1888` is the year of printing of this specific book. Altrough it is still
-> a greek polytonic proofreader, it can easily (almost instantly with an AI) converted
-> To another script
+> The TCP port `1888` is the year of printing of this specific book. Although it is still
+> a Greek polytonic proofreader, it can easily (almost instantly with an AI) be converted
+> to another script
 
 ![Polytonic Proofreader screenshot](screenshot.jpg)
 
 ## Rationale
-Already in the research phase digitizing the book, it was obvious that a dedicated proofreader/editor
-was needed
-- Having the exact buttons, character palete for the job
-- Web based(inside the browser) to reduce the friction of switching tasks to a minimum. One TAB for the AI OCR extractor next to the proffreader TAB
-- Not a tool for all scripts. It will add unnecessary friction for such a hard job
-- Having very specific properties allowing for example to look for mispelled words or words spanning two lines
-- Minimal and easy customization
-- Single file so it can easily converted (with AI) to another script
-- Preventing common and detrimental mistakes, like saving neo-hellenic text to a polytonic folder
-- allowing to write(limited) greek characters without even switching to greek keyboard. The character palete allows to type accents etc.
-- Oriented only for proofreading, The bulk of the text is coming from OCR(AI). The project includes the `prompt` I have used.
-- Above all it is written by the `person that used it`. This feedback loop can create software no generic program can even match. Ok this means `another` person might dislike it, but as we have said it is a single file program. Open an AI (web based/ coding agent is better of course) dialoge and say what you want.
+Already in the research phase digitising the book, it was obvious that a dedicated proofreader/editor
+was needed:
+- Having the exact buttons, character palette for the job
+- Web-based (inside the browser) to reduce the friction of switching tasks to a minimum. One tab for the AI OCR extractor next to the proofreader tab
+- Not a tool for all scripts. It would add unnecessary friction for such a hard job
+- Having very specific properties, allowing for example to look for misspelled words or words spanning two lines
+- Minimal and easy customisation
+- Single file so it can easily be converted (with AI) to another script
+- Preventing common and detrimental mistakes, like saving modern Greek text to a polytonic folder
+- Allowing to write (limited) Greek characters without even switching to a Greek keyboard. The character palette allows typing accents etc.
+- Oriented only for proofreading; the bulk of the text comes from OCR (AI). The project includes the `prompt` I have used.
+- Above all, it is written by the `person who used it`. This feedback loop can create software no generic program can even match. Of course this means `another` person might dislike it, but as we have said it is a single-file program. Open an AI (web-based, or a coding agent is better) dialogue and say what you want.
 
 
 ## Workflow
