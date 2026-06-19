@@ -441,8 +441,10 @@ const indexHTML = `<!doctype html>
   #left.dragging .magnifier { display:none !important; }
   .magnifier { display:none; position:absolute; width:160px; height:120px; border:2px solid rgba(255,255,255,0.7); box-shadow:0 0 12px rgba(0,0,0,0.5); pointer-events:none; z-index:10; background-repeat:no-repeat; }
   #scan { position:absolute; left:0; top:0; transform-origin:top left; max-width:none; user-select:none; -webkit-user-drag:none; }
-  #right { display:flex; flex-direction:row; background:var(--panel); }
+  #right { display:flex; flex-direction:row; background:var(--panel); position:relative; }
   #right.hide-linenums #lineNumbers { display:none; }
+  #textSourceWrap { position:absolute; bottom:8px; right:8px; z-index:5; }
+  #textSourceWrap select { font-size:13px; padding:2px 4px; }
   #lineNumbers { padding:0 4px 250px 8px; text-align:right; background:#e0dfce; color:#888; font-family:"GFS Didot","DejaVu Serif",serif; font-size:20px; line-height:1.35; overflow:hidden; user-select:none; min-width:2ch; border-right:1px solid #bbb; }
   #editorWrap { flex:1; display:flex; position:relative; }
   #highlightOverlay { position:absolute; inset:0; padding:0 14px 250px; pointer-events:none; overflow:hidden; font-family:"GFS Didot","DejaVu Serif",serif; font-size:20px; line-height:1.35; white-space:pre; color:transparent; }
@@ -492,7 +494,6 @@ const indexHTML = `<!doctype html>
 
     <select id="pageSelect" style="font-size:14px;width:12ch" onchange="loadPage(parseInt(this.value))"></select>
     <select id="sourceSelect" style="font-size:14px" onchange="switchSource(this.value)"></select>
-    <select id="textSourceSelect" style="font-size:14px" onchange="switchTextSource(this.value)"></select>
     <span style="margin-left:auto;display:flex;align-items:center;gap:6px">
       <span style="display:inline-flex;align-items:center;background:#fbfbf2;border-radius:4px;padding:0 4px"><input type="text" id="findInput" style="width:110px;font-size:16px;padding:3px 4px;border:none;background:transparent;outline:none" placeholder="Find..." oninput="doFind()"><button onclick="document.getElementById('findInput').value='';doFind();document.getElementById('findInput').focus()" style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 2px;color:#555;cursor:pointer">✕</button></span>
       <span id="findCount" style="color:var(--muted);font-size:18px;min-width:36px;font-weight:bold">0</span>
@@ -547,7 +548,7 @@ const indexHTML = `<!doctype html>
   </div>
   <div id="main">
     <div id="left"><img id="scan" draggable="false"><div class="magnifier" id="magnifier"></div></div>
-    <div id="right"><div id="lineNumbers"></div><div id="editorWrap"><div id="highlightOverlay"></div><textarea id="editor" spellcheck="false"></textarea></div></div>
+    <div id="right"><div id="lineNumbers"></div><div id="editorWrap"><div id="highlightOverlay"></div><textarea id="editor" spellcheck="false"></textarea></div><div id="textSourceWrap"><select id="textSourceSelect" onchange="switchTextSource(this.value)"></select></div></div>
   </div>
 <script>
 let scanDirs=[], pages=[], page="", pageIndex=0, sourceIndex=0, textDirs=[], textSourceIndex=0, zoom=1.0, modified=false;
