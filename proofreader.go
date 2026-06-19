@@ -1038,7 +1038,7 @@ async function loadPage(idx){
   pageEl.value = String(pageIndex);
   rebuildSourceSelect();
   rebuildTextSourceSelect();
-  scan.onload = () => { if(!scan.naturalWidth) return; var vpW=left.clientWidth; var iW=scan.naturalWidth*zoom; imgX=Math.max(0,(vpW-iW)/2); imgY=10; applyTransform(); };
+  scan.onload = () => { if(!scan.naturalWidth) return; zoom=(left.clientWidth-20)/scan.naturalWidth; imgX=10; imgY=10; applyTransform(); };
   connectEvents();
 }
 async function saveText(){
