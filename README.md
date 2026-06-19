@@ -13,31 +13,37 @@ A browser-based polytonic Greek OCR proofreader.
 ## Rationale
 Already in the research phase digitising the book, it was obvious that a dedicated proofreader/editor
 was needed:
-- Having the exact buttons, character palette for the job
-- Web-based (inside the browser) to reduce the friction of switching tasks to a minimum. One tab for the AI OCR extractor next to the proofreader tab
-- Not a tool for all scripts. It would add unnecessary friction for such a hard job
-- Having very specific properties, allowing for example to look for misspelled words or words spanning two lines
-- Minimal and easy customisation
+- Web-based (inside the browser) to reduce the friction of switching tasks to a minimum. One tab for the AI OCR extractor next to the proofreader tab.
+- Only one script (polytonic Greek in this case). It would add unnecessary friction for such a hard job to support more at the same time.
 - Single file so it can easily be converted (with AI) to another script
-- Preventing common and detrimental mistakes, like saving modern Greek text to a polytonic folder
-- Allowing to write (limited) Greek characters without even switching to a Greek keyboard. The character palette allows typing accents etc.
-- Oriented only for proofreading; the bulk of the text comes from OCR (AI). The project includes the `prompt` I have used.
-- Above all, it is written by the `person who used it`. This feedback loop can create software no generic program can even match. Of course this means `another` person might dislike it, but as we have said it is a single-file program. Open an AI (web-based, or a coding agent is better) dialogue and say what you want.
+- Having specific advanced capabilities, allowing for example to look for misspelled words or words spanning two lines (common in old books), or a magnifying glass. At the same time, very common functionality (search and replace for example) is omitted, as not useful for this task.
+- Minimal and easy customisation.
+- Preventing common and detrimental mistakes, like saving modern Greek text to the polytonic `ocr` folder, or saving polytonic text to the `el` folder.
+- Allowing to write Greek characters without even switching to a Greek keyboard. Additionally the character palette allows typing accents and the rest.
+- Oriented only for proofreading; the bulk of the text comes from OCR (AI). The project includes the [`gemini-prompt.txt`](gemini-prompt.txt) I have used. 
+- Written by the `person who used it`. This feedback loop can create software no generic program can match. Of course this means `another` person might dislike it, but as we have said it is a single-file program. Open an AI (web-based, or a coding agent) dialogue and say what you want.
 
 
-## Workflow
+## Setup & Workflow
+0. **Download the repo** locally on your PC. Inside the repo folder, create a folder `my_book` (the book title).
+1. **Place page images** — inside `my_book/scans/`, put your scanned page images (JPG, PNG, WebP, GIF, TIF).
+2. **Install Go**:
+   ```bash
+   # Debian / Ubuntu
+   sudo apt update && sudo apt install golang-go
+   ```
+3. **Run the proofreader**:
+   ```bash
+   go run proofreader.go my_book
+   ```
+4. **Open** the link the proofreader shows in a browser tab.
+5. **Get OCR text from an AI vision model** — in a nearby browser tab, feed each scan image to an AI vision model (e.g. Gemini, GPT‑4o, Claude) together with a prompt instructing it to output polytonic Greek. Copy the returned OCR text.
+6. **Navigate to the page** — use the **← Previous** / **Next →** toolbar buttons to go to the page you just processed.
+7. **Paste the OCR** — paste the AI's output into the text pane on the right.
+8. **Proofread** — compare the scan image (left) against the text (right). Use the **accent‑ignoring search** (Ctrl+F) to spot-check dubious words, and the **Greek character palette** (Ctrl+P) to type corrections. The AI vision model can also suggest what to check again — follow its recommendations.
+9. **Read and annotate** — the purpose is not just to correct OCR errors, but to actually **read the book** as you go. Add comments for small errors in the original text, noteworthy topics, or anything that catches your interest — inside brackets like `[λέξη: επεξήγηση]` or as plain notes. These annotations persist in the saved text.
+10. **Save and move on** — press **Save** (Ctrl+S) and repeat for the next page. Unsaved changes show a `*` in the browser tab title.
 
-1. **Place page images** — put your scanned page images (JPG, PNG, WebP, GIF, TIF) into the `scans/` folder inside your project directory.
-2. **Get OCR text from an AI vision model** — in another browser tab, feed each scan image to an AI vision model (e.g. Gemini, GPT‑4o, Claude) together with a prompt instructing it to output polytonic Greek. Copy the returned OCR text.
-3. **Navigate to the page** — use the **← Previous** / **Next →** toolbar buttons to go to the page you just processed.
-4. **Paste the OCR** — paste the AI's output into the text pane on the right.
-5. **Proofread** — compare the scan image (left) against the text (right). Use the **accent‑ignoring search** (Ctrl+F) to spot-check dubious words, and the **Greek character palette** (Ctrl+P) to type corrections. The AI vision model can also suggest what to check again — follow its recommendations.
-6. **Read and annotate** — the purpose is not just to correct OCR errors, but to actually **read the book** as you go. Add comments for small errors in the original text, noteworthy topics, or anything that catches your interest — inside brackets like `[λέξη: επεξήγηση]` or as plain notes. These annotations persist in the saved text.
-7. **Save and move on** — press **Save** (Ctrl+S) and repeat for the next page. Unsaved changes show a `*` in the browser tab title.
-
-The goal is to catch what the machine got wrong, not to type every page from scratch — and to read and engage with the text along the way.
-
-> See [`gemini-prompt.txt`](gemini-prompt.txt) for the prompt used with Gemini to obtain polytonic Greek OCR output.
 
 ## Book structure
 
