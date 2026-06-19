@@ -494,7 +494,7 @@ const indexHTML = `<!doctype html>
     <button onclick="nextPage()">Next →</button>
     <button onclick="zoomOutCenter()">Zoom -</button>
     <button onclick="zoomInCenter()">Zoom +</button>
-    <button onclick="fitWidth()">Fit width</button>
+    <button onclick="applyDefaultZoom()">DefaultZoom</button>
 
     <select id="pageSelect" style="font-size:14px;width:12ch" onchange="loadPage(parseInt(this.value))"></select>
     <select id="sourceSelect" style="font-size:14px" onchange="switchSource(this.value)"></select>
@@ -555,6 +555,10 @@ const indexHTML = `<!doctype html>
       <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
         <input type="checkbox" id="editDefaultToggle" onchange="toggleEditDefault()"> Edit enabled by default
       </label>
+      <label style="display:flex;align-items:center;gap:8px;margin:8px 0;cursor:pointer;font-size:14px">
+        Default zoom: <span id="zoomLabel">auto</span>
+        <input type="range" id="defaultZoomSlider" min="0" max="3" step="0.1" value="0" style="width:100px" oninput="setDefaultZoom(this.value)">
+      </label>
       <div class="btns" style="margin-top:12px"><button onclick="toggleSettings()">Close</button></div>
     </div>
   </div>
@@ -568,7 +572,7 @@ const indexHTML = `<!doctype html>
             <tr><td style="padding:2px 6px">Drag</td><td style="padding:2px 6px;color:#aaa">Pan image</td></tr>
             <tr><td style="padding:2px 6px">Wheel</td><td style="padding:2px 6px;color:#aaa">Scroll vertically</td></tr>
             <tr><td style="padding:2px 6px">Ctrl+Wheel</td><td style="padding:2px 6px;color:#aaa">Zoom in / out</td></tr>
-            <tr><td style="padding:2px 6px">Double-click</td><td style="padding:2px 6px;color:#aaa">Fit width / 100%</td></tr>
+            <tr><td style="padding:2px 6px">Double-click</td><td style="padding:2px 6px;color:#aaa">DefaultZoom / 100%</td></tr>
             <tr><td style="padding:2px 6px">Middle-click</td><td style="padding:2px 6px;color:#aaa">Toggle magnifier</td></tr>
           </table>
         </div>
@@ -597,7 +601,7 @@ const indexHTML = `<!doctype html>
     <div id="right"><div id="lineNumbers"></div><div id="editorWrap"><div id="highlightOverlay"></div><textarea id="editor" spellcheck="false"></textarea></div></div>
   </div>
 <script>
-let scanDirs=[], pages=[], page="", pageIndex=0, sourceIndex=0, textDirs=[], textSourceIndex=0, zoom=1.0, modified=false;
+let scanDirs=[], pages=[], page="", pageIndex=0, sourceIndex=0, textDirs=[], textSourceIndex=0, zoom=1.0, defaultZoom=0, modified=false;
 let savedText="";
 let eventSource=null;
 let currentTitlePage="";
@@ -633,7 +637,7 @@ left.addEventListener("wheel",(e)=>{
 left.addEventListener("mousedown",(e)=>{ if(e.button!==0) return; dragging=true; left.classList.add("dragging"); dragStartX=e.clientX; dragStartY=e.clientY; dragImgX=imgX; dragImgY=imgY; e.preventDefault(); });
 window.addEventListener("mousemove",(e)=>{ if(!dragging) return; imgX=dragImgX+(e.clientX-dragStartX); imgY=dragImgY+(e.clientY-dragStartY); applyTransform(); });
 window.addEventListener("mouseup",()=>{ dragging=false; left.classList.remove("dragging"); });
-left.addEventListener("dblclick",(e)=>{ e.preventDefault(); if(Math.abs(zoom-1.0)<0.05) fitWidth(); else zoomAt(e.clientX,e.clientY,1.0/zoom); });
+left.addEventListener("dblclick",(e)=>{ e.preventDefault(); if(Math.abs(zoom-1.0)<0.05) applyDefaultZoom(); else zoomAt(e.clientX,e.clientY,1.0/zoom); });
 
 // ──── Magnifier ────
 const mag = document.getElementById('magnifier');
@@ -893,6 +897,13 @@ function toggleEditDefault(){
   const on = document.getElementById('editDefaultToggle').checked;
   localStorage.setItem('proofreaderEditDefault', on ? '1' : '0');
 }
+function setDefaultZoom(val){
+  const v = parseFloat(val);
+  defaultZoom = v;
+  localStorage.setItem('proofreaderDefaultZoom', String(v));
+  const label = v === 0 ? 'auto' : v + '×';
+  document.getElementById('zoomLabel').textContent = label;
+}
 function switchSource(idx){
   sourceIndex = parseInt(idx);
   scan.src="/image/"+encodeURIComponent(page)+"?source="+sourceIndex+"&t="+Date.now();
@@ -954,6 +965,14 @@ async function init(){
   const savedKey = localStorage.getItem("proofreaderLastPage");
   const targetIdx = savedKey ? pages.findIndex(p => p.name === savedKey) : 0;
   const startIdx = targetIdx >= 0 ? targetIdx : 0;
+  // Restore Default Zoom
+  const savedZoom = localStorage.getItem('proofreaderDefaultZoom');
+  if(savedZoom !== null){
+    const zv = parseFloat(savedZoom);
+    defaultZoom = zv;
+    document.getElementById('defaultZoomSlider').value = String(zv);
+    document.getElementById('zoomLabel').textContent = zv === 0 ? 'auto' : zv + '×';
+  }
   await loadPage(startIdx);
   // Restore Edit enabled by default
   if(localStorage.getItem('proofreaderEditDefault') === '1'){
@@ -1024,7 +1043,6 @@ async function loadPage(idx){
   const entry=pages[idx];
   if(!entry) return;
   const name=entry.name;
-  if(page) saveViewportState(page);
   if (!(await maybeWarnAndProceed())) { return; }
   pageIndex=idx;
   sourceIndex=0;
@@ -1039,7 +1057,7 @@ async function loadPage(idx){
   pageEl.value = String(pageIndex);
   rebuildSourceSelect();
   rebuildTextSourceSelect();
-  scan.onload = () => { if(!loadViewportState(name)) fitWidth(); };
+  scan.onload = () => { applyDefaultZoom(); };
   connectEvents();
 }
 async function saveText(){
@@ -1091,7 +1109,7 @@ async function prevPage(){ if(pageIndex>0) await loadPage(pageIndex-1); }
 function zoomAt(clientX,clientY,factor){ const rect=left.getBoundingClientRect(); const mx=clientX-rect.left, my=clientY-rect.top; const oldZoom=zoom; const newZoom=clamp(zoom*factor,0.05,8.0); const ix=(mx-imgX)/oldZoom, iy=(my-imgY)/oldZoom; zoom=newZoom; imgX=mx-ix*zoom; imgY=my-iy*zoom; applyTransform(); }
 function zoomInCenter(){ const r=left.getBoundingClientRect(); zoomAt(r.left+r.width/2,r.top+r.height/2,1.05); }
 function zoomOutCenter(){ const r=left.getBoundingClientRect(); zoomAt(r.left+r.width/2,r.top+r.height/2,1/1.05); }
-function fitWidth(){ if(!scan.naturalWidth) return; zoom=(left.clientWidth-20)/scan.naturalWidth; imgX=10; imgY=10; applyTransform(); }
+function applyDefaultZoom(){ if(!scan.naturalWidth) return; if(defaultZoom===0){ zoom=(left.clientWidth-20)/scan.naturalWidth; }else{ zoom=defaultZoom; } imgX=10; imgY=10; applyTransform(); }
 function applyTransform(){
   const vpW=left.clientWidth, vpH=left.clientHeight;
   const mW=vpW*0.25, mH=vpH*0.25;
@@ -1102,20 +1120,6 @@ function applyTransform(){
   scan.style.left=imgX+"px"; scan.style.top=imgY+"px";
 }
 function clamp(x,lo,hi){ return Math.max(lo,Math.min(hi,x)); }
-function saveViewportState(pageName){
-  if(!pageName) return;
-  try { localStorage.setItem("proofreaderVp-"+pageName, JSON.stringify({zoom,imgX,imgY})); } catch(e){}
-}
-function loadViewportState(pageName){
-  if(!pageName) return false;
-  try {
-    const raw = localStorage.getItem("proofreaderVp-"+pageName);
-    if(!raw) return false;
-    const s = JSON.parse(raw);
-    zoom = s.zoom; imgX = s.imgX; imgY = s.imgY;
-    applyTransform(); return true;
-  } catch(e){ return false; }
-}
 function updateTitle(){
   const marker = modified ? "*" : "";
   const name = page ? page.replace(/\.[^.]+$/, '') : "home";
@@ -1322,7 +1326,6 @@ editor.addEventListener('scroll', () => {
 });
 
 window.addEventListener("beforeunload", (e) => {
-  if(page) saveViewportState(page);
   if (!modified) return;
   e.preventDefault();
   e.returnValue = "";
