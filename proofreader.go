@@ -542,6 +542,9 @@ const indexHTML = `<!doctype html>
       <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
         <input type="checkbox" id="digraphToggle" onchange="toggleDigraph()" checked> Digraph matching
       </label>
+      <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
+        <input type="checkbox" id="restartBtnToggle" onchange="toggleRestartBtn()" checked> Restart button
+      </label>
       <div class="btns" style="margin-top:12px"><button onclick="toggleSettings()">Close</button></div>
     </div>
   </div>
@@ -834,6 +837,11 @@ function toggleMagnifier(){
   updateMagActive();
   localStorage.setItem('proofreaderMagnifier', on ? '1' : '0');
 }
+function toggleRestartBtn(){
+  const show = document.getElementById('restartBtnToggle').checked;
+  document.getElementById('restartBtn').style.display = show ? '' : 'none';
+  localStorage.setItem('proofreaderRestartBtn', show ? '1' : '0');
+}
 function switchSource(idx){
   sourceIndex = parseInt(idx);
   scan.src="/image/"+encodeURIComponent(page)+"?source="+sourceIndex+"&t="+Date.now();
@@ -884,6 +892,12 @@ async function init(){
     document.getElementById('magToggle').checked = true;
   }
   updateMagActive();
+  // Restore Restart button checkbox state
+  const savedRestartBtn = localStorage.getItem('proofreaderRestartBtn');
+  if(savedRestartBtn === '0'){
+    document.getElementById('restartBtnToggle').checked = false;
+    document.getElementById('restartBtn').style.display = 'none';
+  }
   buildGreekPalette();
   rebuildTextSourceSelect();
   const savedKey = localStorage.getItem("proofreaderLastPage");
