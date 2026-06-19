@@ -545,6 +545,9 @@ const indexHTML = `<!doctype html>
       <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
         <input type="checkbox" id="restartBtnToggle" onchange="toggleRestartBtn()" checked> Restart button
       </label>
+      <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
+        <input type="checkbox" id="editDefaultToggle" onchange="toggleEditDefault()"> Edit enabled by default
+      </label>
       <div class="btns" style="margin-top:12px"><button onclick="toggleSettings()">Close</button></div>
     </div>
   </div>
@@ -842,6 +845,10 @@ function toggleRestartBtn(){
   document.getElementById('restartBtn').style.display = show ? '' : 'none';
   localStorage.setItem('proofreaderRestartBtn', show ? '1' : '0');
 }
+function toggleEditDefault(){
+  const on = document.getElementById('editDefaultToggle').checked;
+  localStorage.setItem('proofreaderEditDefault', on ? '1' : '0');
+}
 function switchSource(idx){
   sourceIndex = parseInt(idx);
   scan.src="/image/"+encodeURIComponent(page)+"?source="+sourceIndex+"&t="+Date.now();
@@ -904,6 +911,13 @@ async function init(){
   const targetIdx = savedKey ? pages.findIndex(p => p.name === savedKey) : 0;
   const startIdx = targetIdx >= 0 ? targetIdx : 0;
   await loadPage(startIdx);
+  // Restore Edit enabled by default
+  if(localStorage.getItem('proofreaderEditDefault') === '1'){
+    document.getElementById('editDefaultToggle').checked = true;
+    if(!document.getElementById('editToggle').checked){
+      document.getElementById('editToggle').click();
+    }
+  }
   // Auto-save every 30 seconds when modified
   setInterval(async () => { if(modified && page) await saveText(); }, 30000);
 }
