@@ -556,8 +556,8 @@ const indexHTML = `<!doctype html>
         <input type="checkbox" id="editDefaultToggle" onchange="toggleEditDefault()"> Edit enabled by default
       </label>
       <label style="display:flex;align-items:center;gap:8px;margin:8px 0;cursor:pointer;font-size:14px">
-        Default zoom: <span id="zoomLabel">auto</span>
-        <input type="range" id="defaultZoomSlider" min="0" max="3" step="0.1" value="0" style="width:100px" oninput="setDefaultZoom(this.value)">
+        Default zoom: <span id="zoomLabel">1×</span>
+        <input type="range" id="defaultZoomSlider" min="1" max="2" step="0.1" value="1" style="width:100px" oninput="setDefaultZoom(this.value)">
       </label>
       <div class="btns" style="margin-top:12px"><button onclick="toggleSettings()">Close</button></div>
     </div>
@@ -601,7 +601,7 @@ const indexHTML = `<!doctype html>
     <div id="right"><div id="lineNumbers"></div><div id="editorWrap"><div id="highlightOverlay"></div><textarea id="editor" spellcheck="false"></textarea></div></div>
   </div>
 <script>
-let scanDirs=[], pages=[], page="", pageIndex=0, sourceIndex=0, textDirs=[], textSourceIndex=0, zoom=1.0, defaultZoom=0, modified=false;
+let scanDirs=[], pages=[], page="", pageIndex=0, sourceIndex=0, textDirs=[], textSourceIndex=0, zoom=1.0, defaultZoom=1, modified=false;
 let savedText="";
 let eventSource=null;
 let currentTitlePage="";
@@ -901,8 +901,7 @@ function setDefaultZoom(val){
   const v = parseFloat(val);
   defaultZoom = v;
   localStorage.setItem('proofreaderDefaultZoom', String(v));
-  const label = v === 0 ? 'auto' : v + '×';
-  document.getElementById('zoomLabel').textContent = label;
+  document.getElementById('zoomLabel').textContent = v + '×';
 }
 function switchSource(idx){
   sourceIndex = parseInt(idx);
@@ -969,9 +968,10 @@ async function init(){
   const savedZoom = localStorage.getItem('proofreaderDefaultZoom');
   if(savedZoom !== null){
     const zv = parseFloat(savedZoom);
+    if(isNaN(zv)) zv=1;
     defaultZoom = zv;
     document.getElementById('defaultZoomSlider').value = String(zv);
-    document.getElementById('zoomLabel').textContent = zv === 0 ? 'auto' : zv + '×';
+    document.getElementById('zoomLabel').textContent = zv + '×';
   }
   await loadPage(startIdx);
   // Restore Edit enabled by default
@@ -1109,7 +1109,7 @@ async function prevPage(){ if(pageIndex>0) await loadPage(pageIndex-1); }
 function zoomAt(clientX,clientY,factor){ const rect=left.getBoundingClientRect(); const mx=clientX-rect.left, my=clientY-rect.top; const oldZoom=zoom; const newZoom=clamp(zoom*factor,0.05,8.0); const ix=(mx-imgX)/oldZoom, iy=(my-imgY)/oldZoom; zoom=newZoom; imgX=mx-ix*zoom; imgY=my-iy*zoom; applyTransform(); }
 function zoomInCenter(){ const r=left.getBoundingClientRect(); zoomAt(r.left+r.width/2,r.top+r.height/2,1.05); }
 function zoomOutCenter(){ const r=left.getBoundingClientRect(); zoomAt(r.left+r.width/2,r.top+r.height/2,1/1.05); }
-function applyDefaultZoom(){ if(!scan.naturalWidth) return; if(defaultZoom===0){ zoom=(left.clientWidth-20)/scan.naturalWidth; }else{ zoom=defaultZoom; } imgX=10; imgY=10; applyTransform(); }
+function applyDefaultZoom(){ if(!scan.naturalWidth) return; var fw=(left.clientWidth-20)/scan.naturalWidth; zoom=fw*defaultZoom; imgX=10; imgY=10; applyTransform(); }
 function applyTransform(){
   const vpW=left.clientWidth, vpH=left.clientHeight;
   const mW=vpW*0.25, mH=vpH*0.25;
