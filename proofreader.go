@@ -470,6 +470,12 @@ const indexHTML = `<!doctype html>
   #settingsModal .box { background:#2b2b2b; padding:24px; border-radius:8px; min-width:260px; color:var(--text); font-family:system-ui,sans-serif; }
   #settingsModal label { font-size:15px; user-select:none; }
   #settingsModal .btns { display:flex; gap:8px; justify-content:flex-end; }
+  /* Help modal */
+  #helpModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
+  #helpModal.show { display:flex; }
+  #helpModal .box { background:#2b2b2b; padding:24px; border-radius:8px; min-width:480px; max-width:560px; color:var(--text); font-family:system-ui,sans-serif; }
+  #helpModal table { border-collapse:collapse; }
+  #helpModal .btns { display:flex; gap:8px; justify-content:flex-end; }
   /* Disabled toolbar buttons */
   #toolbar button:disabled { opacity:0.5; cursor:not-allowed; background:#444 !important; color:#aaa !important; }
   /* Greek character palette */
@@ -499,6 +505,7 @@ const indexHTML = `<!doctype html>
       <button onclick="copyAll()" style="font-size:14px;padding:4px 8px;margin-right:4px">Copy All</button>
       <button id="grCharBtn" onclick="toggleGreekPalette()" style="font-size:14px;padding:4px 8px;margin-right:4px" title="Polytonic Greek characters (Ctrl+P)">Greek Char</button>
       <button onclick="toggleSettings()" style="font-size:14px;padding:4px 8px;margin-right:4px" title="Settings">Settings</button>
+      <button onclick="toggleHelp()" style="font-size:14px;padding:4px 8px;margin-right:4px" title="Help">Help</button>
       <button id="restartBtn" onclick="window.location.href='/restart'" style="font-size:14px;padding:4px 8px;margin-right:4px;background:#8b0000;color:#fff" title="Restart server (recompile)">Restart</button>
       <label style="color:var(--text);font-size:14px;user-select:none;display:flex;align-items:center;gap:4px">
         <input type="checkbox" id="editToggle" onchange="toggleEditMode()"> Edit
@@ -549,6 +556,40 @@ const indexHTML = `<!doctype html>
         <input type="checkbox" id="editDefaultToggle" onchange="toggleEditDefault()"> Edit enabled by default
       </label>
       <div class="btns" style="margin-top:12px"><button onclick="toggleSettings()">Close</button></div>
+    </div>
+  </div>
+  <div id="helpModal">
+    <div class="box">
+      <p style="font-size:16px;font-weight:bold;margin:0 0 12px">Help &amp; Shortcuts</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <p style="font-weight:bold;margin:0 0 6px;color:#8cf">Image pane (left)</p>
+          <table style="font-size:13px;width:100%">
+            <tr><td style="padding:2px 4px">Drag</td><td style="padding:2px 4px;color:#aaa">Pan image</td></tr>
+            <tr><td style="padding:2px 4px">Wheel</td><td style="padding:2px 4px;color:#aaa">Scroll vertically</td></tr>
+            <tr><td style="padding:2px 4px">Ctrl+Wheel</td><td style="padding:2px 4px;color:#aaa">Zoom in / out</td></tr>
+            <tr><td style="padding:2px 4px">Double-click</td><td style="padding:2px 4px;color:#aaa">Fit width / 100%</td></tr>
+            <tr><td style="padding:2px 4px">Middle-click</td><td style="padding:2px 4px;color:#aaa">Toggle magnifier</td></tr>
+          </table>
+        </div>
+        <div>
+          <p style="font-weight:bold;margin:0 0 6px;color:#8cf">Text pane (right)</p>
+          <table style="font-size:13px;width:100%">
+            <tr><td style="padding:2px 4px">Wheel</td><td style="padding:2px 4px;color:#aaa">Scroll text</td></tr>
+            <tr><td style="padding:2px 4px">Ctrl+Wheel</td><td style="padding:2px 4px;color:#aaa">Change font size</td></tr>
+            <tr><td style="padding:2px 4px">Drag</td><td style="padding:2px 4px;color:#aaa">Scroll text</td></tr>
+            <tr><td style="padding:2px 4px">Click</td><td style="padding:2px 4px;color:#aaa">Cursor placement</td></tr>
+          </table>
+        </div>
+      </div>
+      <p style="font-weight:bold;margin:10px 0 6px;color:#8cf">Global shortcuts</p>
+      <table style="font-size:13px;width:100%;max-width:400px">
+        <tr><td style="padding:2px 8px;white-space:nowrap">Ctrl+S</td><td style="padding:2px 8px;color:#aaa">Save page</td><td style="padding:2px 8px;white-space:nowrap">Ctrl+E</td><td style="padding:2px 8px;color:#aaa">Toggle edit</td></tr>
+        <tr><td style="padding:2px 8px;white-space:nowrap">Ctrl+F</td><td style="padding:2px 8px;color:#aaa">Focus search</td><td style="padding:2px 8px;white-space:nowrap">Ctrl+P</td><td style="padding:2px 8px;color:#aaa">Greek palette</td></tr>
+        <tr><td style="padding:2px 8px;white-space:nowrap">Ctrl+G</td><td style="padding:2px 8px;color:#aaa">Force Greek</td><td style="padding:2px 8px;white-space:nowrap">Ctrl+M</td><td style="padding:2px 8px;color:#aaa">Magnifier</td></tr>
+        <tr><td style="padding:2px 8px;white-space:nowrap">Ctrl+D</td><td style="padding:2px 8px;color:#aaa">Digraph match</td><td style="padding:2px 8px;white-space:nowrap">Ctrl+Z/Y</td><td style="padding:2px 8px;color:#aaa">Undo / Redo</td></tr>
+      </table>
+      <div class="btns" style="margin-top:12px"><button onclick="toggleHelp()">Close</button></div>
     </div>
   </div>
   <div id="main">
@@ -834,6 +875,9 @@ function toggleEditMode(){
 }
 function toggleSettings(){
   document.getElementById('settingsModal').classList.toggle('show');
+}
+function toggleHelp(){
+  document.getElementById('helpModal').classList.toggle('show');
 }
 function toggleMagnifier(){
   const on = document.getElementById('magToggle').checked;
