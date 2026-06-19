@@ -492,7 +492,6 @@ const indexHTML = `<!doctype html>
 
     <select id="pageSelect" style="font-size:14px;width:12ch" onchange="loadPage(parseInt(this.value))"></select>
     <select id="sourceSelect" style="font-size:14px" onchange="switchSource(this.value)"></select>
-    <select id="textSourceSelect" style="font-size:14px" onchange="switchTextSource(this.value)"></select>
     <span style="margin-left:auto;display:flex;align-items:center;gap:6px">
       <span style="display:inline-flex;align-items:center;background:#fbfbf2;border-radius:4px;padding:0 4px"><input type="text" id="findInput" style="width:110px;font-size:16px;padding:3px 4px;border:none;background:transparent;outline:none" placeholder="Find..." oninput="doFind()"><button onclick="document.getElementById('findInput').value='';doFind();document.getElementById('findInput').focus()" style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 2px;color:#555;cursor:pointer">✕</button></span>
       <span id="findCount" style="color:var(--muted);font-size:18px;min-width:36px;font-weight:bold">0</span>
@@ -504,6 +503,7 @@ const indexHTML = `<!doctype html>
       <label style="color:var(--text);font-size:14px;user-select:none;display:flex;align-items:center;gap:4px">
         <input type="checkbox" id="editToggle" onchange="toggleEditMode()"> Edit
       </label>
+      <select id="textSourceSelect" style="font-size:14px" onchange="switchTextSource(this.value)"></select>
     </span>
     <span id="status"></span>
   </div>
