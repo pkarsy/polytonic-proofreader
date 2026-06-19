@@ -1,13 +1,29 @@
-# Polytonic Proofreader
+# Polytonic Proofreader (But easily convertible to other scripts, see below)
 
 A browser-based polytonic Greek OCR proofreader.
 
 > Originally created for proofreading **ΤΟ ΣΥΜΠΑΝ (THE UNIVERSE)** (Smyrna, 1888) —
 > a family heirloom the author wanted to digitise and read.
-> The TCP port `1888` is the year of printing; the name was generalised
-> because polytonic Greek OCR is a broader need. You review scanned pages side-by-side with their OCR output, correct the text, and save — all from a browser tab next to your AI/OCR tool.
+> The TCP port `1888` is the year of printing of this specific book. Altrough it is still
+> a greek polytonic proofreader, it can easily (almost instantly with an AI) converted
+> To another script
 
 ![Polytonic Proofreader screenshot](screenshot.jpg)
+
+## Rationale
+Already in the research phase digitizing the book, it was obvious that a dedicated proofreader/editor
+was needed
+- Having the exact buttons, character palete for the job
+- Web based(inside the browser) to reduce the friction of switching tasks to a minimum. One TAB for the AI OCR extractor next to the proffreader TAB
+- Not a tool for all scripts. It will add unnecessary friction for such a hard job
+- Having very specific properties allowing for example to look for mispelled words or words spanning two lines
+- Minimal and easy customization
+- Single file so it can easily converted (with AI) to another script
+- Preventing common and detrimental mistakes, like saving neo-hellenic text to a polytonic folder
+- allowing to write(limited) greek characters without even switching to greek keyboard. The character palete allows to type accents etc.
+- Oriented only for proofreading, The bulk of the text is coming from OCR(AI). The project includes the `prompt` I have used.
+- Above all it is written by the `person that used it`. This feedback loop can create software no generic program can even match. Ok this means `another` person might dislike it, but as we have said it is a single file program. Open an AI (web based/ coding agent is better of course) dialoge and say what you want.
+
 
 ## Workflow
 
@@ -93,7 +109,7 @@ go run proofreader.go examples
 # Or use your own project
 go run proofreader.go /path/to/project
 
-# Use a different port
+# Use a different port, for tests, or having 2 books in different tabs
 go run proofreader.go -p 1889 /path/to/project
 ```
 
@@ -119,33 +135,22 @@ Click **Greek Char** (or **Ctrl+P**) to open a popup with all accented/breathing
 ### Latin → Greek transliteration ("Force Greek")
 When **☐ Force Greek** is checked (default), both the **search box** and the **text area** automatically convert Latin letters to their Greek QWERTY equivalents as you type:
 
-| English key | → | Greek |
-|---|---|---|
-| a | → | α |
-| b | → | β |
-| g | → | γ |
-| d | → | δ |
-| e | → | ε |
-| z | → | ζ |
-| h | → | η |
-| u | → | θ |
-| i | → | ι |
-| k | → | κ |
-| l | → | λ |
-| m | → | μ |
-| n | → | ν |
-| x | → | χ |
-| o | → | ο |
-| p | → | π |
-| r | → | ρ |
-| s | → | σ |
-| t | → | τ |
-| y | → | υ |
-| f | → | φ |
-| c | → | ψ |
-| v | → | ω |
-| q | → | ς |
-| j | → | ξ |
+<table>
+<tr><th>English key</th><th>→</th><th>Greek</th><th style="width:2em"></th><th>English key</th><th>→</th><th>Greek</th></tr>
+<tr><td>a</td><td>→</td><td>α</td><td></td><td>n</td><td>→</td><td>ν</td></tr>
+<tr><td>b</td><td>→</td><td>β</td><td></td><td>x</td><td>→</td><td>χ</td></tr>
+<tr><td>g</td><td>→</td><td>γ</td><td></td><td>o</td><td>→</td><td>ο</td></tr>
+<tr><td>d</td><td>→</td><td>δ</td><td></td><td>p</td><td>→</td><td>π</td></tr>
+<tr><td>e</td><td>→</td><td>ε</td><td></td><td>r</td><td>→</td><td>ρ</td></tr>
+<tr><td>z</td><td>→</td><td>ζ</td><td></td><td>s</td><td>→</td><td>σ</td></tr>
+<tr><td>h</td><td>→</td><td>η</td><td></td><td>t</td><td>→</td><td>τ</td></tr>
+<tr><td>u</td><td>→</td><td>θ</td><td></td><td>y</td><td>→</td><td>υ</td></tr>
+<tr><td>i</td><td>→</td><td>ι</td><td></td><td>f</td><td>→</td><td>φ</td></tr>
+<tr><td>k</td><td>→</td><td>κ</td><td></td><td>c</td><td>→</td><td>ψ</td></tr>
+<tr><td>l</td><td>→</td><td>λ</td><td></td><td>v</td><td>→</td><td>ω</td></tr>
+<tr><td>m</td><td>→</td><td>μ</td><td></td><td>q</td><td>→</td><td>ς</td></tr>
+<tr><td></td><td></td><td></td><td></td><td>j</td><td>→</td><td>ξ</td></tr>
+</table>
 
 Uncheck to type Latin letters normally. The setting persists across page changes and browser refreshes via `localStorage`.
 
