@@ -1,4 +1,4 @@
-# Polytonic Proofreader (But easily convertible to other scripts, see below)
+# 📖 Polytonic Proofreader (But easily convertible to other scripts, see below)
 
 A browser-based polytonic Greek OCR proofreader.
 
@@ -10,7 +10,7 @@ A browser-based polytonic Greek OCR proofreader.
 
 ![Polytonic Proofreader screenshot](screenshot.jpg)
 
-## Rationale
+## 💡 Rationale
 Already in the research phase digitising the book, it was obvious that a dedicated proofreader/editor
 was needed:
 - Web-based (inside the browser) to reduce the friction of switching tasks to a minimum. One tab for the AI OCR extractor next to the proofreader tab.
@@ -24,7 +24,7 @@ was needed:
 - Written by the `person who used it`. This feedback loop can create software no generic program can match. Of course this means `another` person might dislike it, but as we have said it is a single-file program. Open an AI (web-based, or a coding agent) dialogue and say what you want.
 
 
-## Setup & Workflow
+## 🚀 Setup & Workflow
 - **Download the repo** locally on your PC. Inside the repo folder, create a folder `my_book` (the book title).
 - **Place page images** — inside `my_book/scans/`, put your scanned page images (JPG, PNG, WebP, GIF, TIF).
 - **Install Go**:
@@ -45,11 +45,11 @@ was needed:
 - **Save and move on** — press **Save** (Ctrl+S) and repeat for the next page. Unsaved changes show a `*` in the browser tab title.
 
 
-## Book structure
+## 📁 Book structure
 
 The program discovers scans and text directories by scanning the project directory you pass as argument. Here's how it works:
 
-### Scan directories
+### 📂 Scan directories
 
 Any **subdirectory whose name starts with `"scans"`** is treated as a scan directory:
 - `scans` — primary scan folder
@@ -57,20 +57,20 @@ Any **subdirectory whose name starts with `"scans"`** is treated as a scan direc
 
 The folder named exactly `scans` is always listed first. You can switch between them using the **source dropdown** in the toolbar.
 
-### Accepted image formats
+### 🖼️ Accepted image formats
 
 Only files with these extensions are recognised as page images:
 `.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`, `.tif`, `.tiff`
 
 Non-image files and nested subdirectories are ignored.
 
-### Text (OCR) directories
+### 📝 Text (OCR) directories
 
 The program looks for folders named exactly `ocr` and `el` (no prefix matching) under the project directory. These store the OCR text files — one `.txt` file per page.
 
 If neither `ocr` nor `el` exists, the program **automatically creates** `ocr/` after validating that the scans structure is present.
 
-### Example layout
+### 📐 Example layout
 
 The repo comes with ready-to-use examples in the [`examples/`](examples/) directory:
 
@@ -88,15 +88,15 @@ project/
 
 Run `go run proofreader.go examples` to try it immediately (use `-p 1889` to pick a different port).
 
-### Custom layout
+### 🔧 Custom layout
 
 Pages sharing the same 3‑character prefix (e.g. `011.jpg`, `011b.jpg`) are grouped together. Use the **source dropdown** to switch between image variants while keeping the same text.
 
-### Configuration
+### ⚙️ Configuration
 
 There are **no environment variables, no config files** for paths — it's all filesystem-based with the hardcoded `"scans"` prefix as described above.
 
-### Port
+### 🔌 Port
 
 The server runs on port **1888** by default. Use the `-p` / `--port` flag to change it:
 
@@ -105,7 +105,7 @@ go run proofreader.go -p 1889 examples
 # Open http://localhost:1889/
 ```
 
-## Quick start
+## ⚡ Quick start
 
 ```bash
 # Try it with the built-in examples
@@ -119,13 +119,13 @@ go run proofreader.go /path/to/project
 go run proofreader.go -p 1889 /path/to/project
 ```
 
-## Features
+## ✨ Features
 
-### Side-by-side view
+### 🖥️ Side-by-side view
 - **Left pane** — scan image (wheel to scroll vertically, **Ctrl+wheel** to zoom, click-drag to pan, double-click to fit/zoom)
 - **Right pane** — editable OCR text with wheel to scroll, **Ctrl+wheel** to change font size
 
-### Edit mode
+### ✏️ Edit mode
 Click **☐ Edit** (or **Ctrl+E**) to toggle between:
 
 | Mode | Behaviour |
@@ -133,12 +133,12 @@ Click **☐ Edit** (or **Ctrl+E**) to toggle between:
 | View | Drag‑scroll text, font resize via scrollwheel, read‑only |
 | Edit | Type corrections, click for cursor, undo/redo work |
 
-### Polytonic Greek character palette
+### 🎨 Polytonic Greek character palette
 Click **Greek Char** (or **Ctrl+P**) to open a popup with all accented/breathing‑mark variants. Click any character to insert it at the cursor position. The leftmost column (the bare letter) is also clickable — you can insert `α` without switching your keyboard.
 
 **Undo (Ctrl+Z) works** for palette insertions and direct typing.
 
-### Latin → Greek transliteration ("Force Greek")
+### 🔤 Latin → Greek transliteration ("Force Greek")
 When **☐ Force Greek** is checked (default), both the **search box** and the **text area** automatically convert Latin letters to their Greek QWERTY equivalents as you type:
 
 <table>
@@ -160,19 +160,19 @@ When **☐ Force Greek** is checked (default), both the **search box** and the *
 
 Uncheck to type Latin letters normally. The setting persists across page changes and browser refreshes via `localStorage`.
 
-### Search
+### 🔍 Search
 The search field finds polytonic Greek text, **ignoring accents and breathing marks**. Typing `καλος` also matches `καλός`, `καλῶς`, etc. Search is hyphenation‑aware: line‑break hyphens (`-\n`) are skipped during matching.
 
-### Copy All
+### 📋 Copy All
 Click **Copy All** to copy the entire current page text to your clipboard. Shows a confirmation in the status bar.
 
-### Digraph matching (experimental)
+### 🔀 Digraph matching (experimental)
 When **☐ Digraph matching** is checked (default: **on**), the search engine also matches historical spelling variants:
 - ει matches η, ι, υ (all pronounced similarly in later Greek)
 - αι matches ε
 This helps find words that may have been spelled with different vowel letters in the original text vs. the OCR output.
 
-### Magnifier
+### 🔎 Magnifier
 Hover over the scan image to see a **3× magnified lens** that follows your cursor — useful for checking small diacritics and breathing marks in polytonic Greek. The magnifier can be toggled on/off:
 
 - **Settings popup** — check ☐ Always-on magnifier
@@ -181,16 +181,16 @@ Hover over the scan image to see a **3× magnified lens** that follows your curs
 
 When the magnifier is off, the cursor changes back to a grab-hand for panning.
 
-### Line numbers
+### 🔢 Line numbers
 In **Settings**, toggle **☐ Lines** to show/hide line numbers on the left side of the text pane. Lines that are blank or contain only metadata (e.g. `[header]`) are skipped by the numbering.
 
-### Image source selector
+### 🗂️ Image source selector
 Use the **source dropdown** (between the page selector and the text source) to switch between multiple scan directories — e.g. `scans` (primary) and `scans2` (alternative/cleaner images of the same pages).
 
-### Text source selector
+### 📄 Text source selector
 Use the **text source dropdown** (next to the image source) to switch between multiple OCR sources — e.g. `ocr` (polytonic Greek) and `el` (modern Greek). This allows comparing or saving to different text directories.
 
-### Settings
+### ⚙️ Settings
 Click **Settings** (no shortcut) to open a popup with the following toggles:
 
 | Setting | Default | Description |
@@ -205,13 +205,13 @@ Click **Settings** (no shortcut) to open a popup with the following toggles:
 
 All settings persist across page changes and browser refreshes via `localStorage`.
 
-### Help
+### ❓ Help
 Click **Help** (no shortcut) to view a popup with a full reference of image-pane interactions, text-pane interactions, and global keyboard shortcuts.
 
-### Server restart (hot‑reload)
+### 🔄 Server restart (hot‑reload)
 After editing the Go source, click the **Restart** button (or visit `/restart`) to recompile and restart the server in-place. The browser automatically refreshes after 1 second — no need to restart the terminal command. The button is disabled if Go or the source file is not found.
 
-## Keyboard shortcuts
+## ⌨️ Keyboard shortcuts
 
 | Shortcut | Action |
 |---|---|
@@ -225,7 +225,7 @@ After editing the Go source, click the **Restart** button (or visit `/restart`) 
 | **Ctrl+Z / Y / Shift+Z** | Undo / redo (native browser, always works) |
 | **Escape** | Close Greek palette |
 
-## Project structure
+## 🗂️ Project structure
 
 ```
 ├── proofreader.go       # single‑file Go server + embedded HTML/CSS/JS
@@ -242,11 +242,11 @@ After editing the Go source, click the **Restart** button (or visit `/restart`) 
 
 No dependencies beyond the Go standard library. No `go.mod`, no build step — just `go run`.
 
-## Why there is no need for binaries
+## 🤔 Why there is no need for binaries
 
 This program is distributed as **source code only** — no precompiled binaries, no installers. You get the Go compiler, and you're ready to go.
 
-### The real reason: customisation
+### 🎯 The real reason: customisation
 
 The book you are digitising is **unique**. Its script, its layout, its quirks — no binary could anticipate them all. By keeping the program as a single editable source file, you — or any AI coding agent — can:
 
@@ -258,7 +258,7 @@ The book you are digitising is **unique**. Its script, its layout, its quirks �
 
 Everything is in one file, every feature is a few lines of JavaScript or Go away from being changed. No build tools, no recompilation step — just edit, save, and click **Restart**.
 
-## Forking for another script
+## 🌍 Forking for another script
 
 The **Go server is script-agnostic** — only the embedded frontend (character palette, transliteration map, text detection) is script-specific. To adapt this tool for Arabic, Cyrillic, Hebrew, or any other writing system:
 
@@ -274,6 +274,6 @@ No Go dependencies beyond the standard library, no build step — just Go instal
 > The design, workflow, and feature decisions were made by the author;
 > the agent translated them into code.
 
-## License
+## ⚖️ License
 
 MIT. Do what you want with it.
