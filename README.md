@@ -25,24 +25,24 @@ was needed:
 
 
 ## Setup & Workflow
-0. **Download the repo** locally on your PC. Inside the repo folder, create a folder `my_book` (the book title).
-1. **Place page images** — inside `my_book/scans/`, put your scanned page images (JPG, PNG, WebP, GIF, TIF).
-2. **Install Go**:
+- **Download the repo** locally on your PC. Inside the repo folder, create a folder `my_book` (the book title).
+- **Place page images** — inside `my_book/scans/`, put your scanned page images (JPG, PNG, WebP, GIF, TIF).
+- **Install Go**:
    ```bash
    # Debian / Ubuntu
    sudo apt update && sudo apt install golang-go
    ```
-3. **Run the proofreader**:
+- **Run the proofreader**:
    ```bash
    go run proofreader.go my_book
    ```
-4. **Open** the link the proofreader shows in a browser tab.
-5. **Get OCR text from an AI vision model** — in a nearby browser tab, feed each scan image to an AI vision model (e.g. Gemini, GPT‑4o, Claude) together with a prompt instructing it to output polytonic Greek. Copy the returned OCR text.
-6. **Navigate to the page** — use the **← Previous** / **Next →** toolbar buttons to go to the page you just processed.
-7. **Paste the OCR** — paste the AI's output into the text pane on the right.
-8. **Proofread** — compare the scan image (left) against the text (right). Use the **accent‑ignoring search** (Ctrl+F) to spot-check dubious words, and the **Greek character palette** (Ctrl+P) to type corrections. The AI vision model can also suggest what to check again — follow its recommendations.
-9. **Read and annotate** — the purpose is not just to correct OCR errors, but to actually **read the book** as you go. Add comments for small errors in the original text, noteworthy topics, or anything that catches your interest — inside brackets like `[λέξη: επεξήγηση]` or as plain notes. These annotations persist in the saved text.
-10. **Save and move on** — press **Save** (Ctrl+S) and repeat for the next page. Unsaved changes show a `*` in the browser tab title.
+- **Open** the link the proofreader shows in a browser tab.
+- **Get OCR text from an AI vision model** — in a nearby browser tab, feed each scan image to an AI vision model (e.g. Gemini, GPT‑4o, Claude) together with a prompt instructing it to output polytonic Greek. Copy the returned OCR text.
+- **Navigate to the page** — use the **← Previous** / **Next →** toolbar buttons to go to the page you just processed.
+- **Paste the OCR** — paste the AI's output into the text pane on the right.
+- **Proofread** — compare the scan image (left) against the text (right). Use the **accent‑ignoring search** (Ctrl+F) to spot-check dubious words, and the **Greek character palette** (Ctrl+P) to type corrections. The AI vision model can also suggest what to check again — follow its recommendations.
+- **Read and annotate** — the purpose is not just to correct OCR errors, but to actually **read the book** as you go. Add comments for small errors in the original text, noteworthy topics, or anything that catches your interest — inside brackets like `[λέξη: επεξήγηση]` or as plain notes. These annotations persist in the saved text.
+- **Save and move on** — press **Save** (Ctrl+S) and repeat for the next page. Unsaved changes show a `*` in the browser tab title.
 
 
 ## Book structure
