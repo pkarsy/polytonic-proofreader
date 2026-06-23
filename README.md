@@ -270,7 +270,7 @@ No Go dependencies beyond the standard library, no build step — just Go instal
 
 ---
 
-> Developed with the assistance of **Reasonix Code (Deepseek V4)**, an AI coding agent.
+> Developed with the assistance of **[Reasonix Code (Deepseek V4)](https://reasonix.io/)**, an AI coding agent.
 > The design, workflow, and feature decisions were made by the author;
 > the agent translated them into code.
 
