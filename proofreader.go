@@ -555,6 +555,9 @@ const indexHTML = `<!doctype html>
       <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
         <input type="checkbox" id="editDefaultToggle" onchange="toggleEditDefault()"> Edit enabled by default
       </label>
+      <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
+        <input type="checkbox" id="autoSaveToggle" onchange="toggleAutoSave()" checked> Auto-save (30s)
+      </label>
       <div class="btns" style="margin-top:12px"><button onclick="toggleSettings()">Close</button></div>
     </div>
   </div>
@@ -604,6 +607,7 @@ let currentTitlePage="";
 const latinToGreek={'a':'α','b':'β','c':'ψ','d':'δ','e':'ε','f':'φ','g':'γ','h':'η','i':'ι','j':'ξ','k':'κ','l':'λ','m':'μ','n':'ν','o':'ο','p':'π','q':'ς','r':'ρ','s':'σ','t':'τ','u':'θ','v':'ω','x':'χ','y':'υ','z':'ζ'};
 let forceGreek = localStorage.getItem('proofreaderForceGreek') !== '0';
 let digraphMatch = localStorage.getItem('proofreaderDigraph') !== '0';
+let autoSaveEnabled = localStorage.getItem('proofreaderAutoSave') !== '0';
 let editorFontSize = Number(localStorage.getItem("proofreaderEditorFontSize") || "20");
 
 // Text pane drag-scroll state
@@ -798,7 +802,7 @@ window.addEventListener("keydown",async(e)=>{
   // the browser textarea handles undo/redo.
   // Use event.code for app shortcuts so they work with Greek / other layouts.
 
-  if(isCtrl && (code==="KeyS" || code==="Enter")){
+  if(isCtrl && code==="KeyS"){
     e.preventDefault();
     e.stopPropagation();
     if(e.stopImmediatePropagation) e.stopImmediatePropagation();
@@ -893,6 +897,10 @@ function toggleEditDefault(){
   const on = document.getElementById('editDefaultToggle').checked;
   localStorage.setItem('proofreaderEditDefault', on ? '1' : '0');
 }
+function toggleAutoSave(){
+  autoSaveEnabled = document.getElementById('autoSaveToggle').checked;
+  localStorage.setItem('proofreaderAutoSave', autoSaveEnabled ? '1' : '0');
+}
 function switchSource(idx){
   sourceIndex = parseInt(idx);
   scan.src="/image/"+encodeURIComponent(page)+"?source="+sourceIndex+"&t="+Date.now();
@@ -949,6 +957,8 @@ async function init(){
     document.getElementById('restartBtnToggle').checked = false;
     document.getElementById('restartBtn').style.display = 'none';
   }
+  // Restore Auto-save checkbox state
+  document.getElementById('autoSaveToggle').checked = autoSaveEnabled;
   buildGreekPalette();
   rebuildTextSourceSelect();
   const savedKey = localStorage.getItem("proofreaderLastPage");
@@ -962,8 +972,8 @@ async function init(){
       document.getElementById('editToggle').click();
     }
   }
-  // Auto-save every 30 seconds when modified
-  setInterval(async () => { if(modified && page) await saveText(); }, 30000);
+  // Auto-save every 30 seconds when modified and auto-save is enabled
+  setInterval(async () => { if(autoSaveEnabled && modified && page) await saveText(); }, 30000);
 }
 function warnUnsaved() {
   return new Promise((resolve) => {

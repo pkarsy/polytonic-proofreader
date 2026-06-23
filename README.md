@@ -167,13 +167,22 @@ The search field finds polytonic Greek text, **ignoring accents and breathing ma
 Click **Copy All** to copy the entire current page text to your clipboard. Shows a confirmation in the status bar.
 
 ### Digraph matching (experimental)
-When **☐ Digraph matching** is checked, the search engine also matches historical spelling variants:
+When **☐ Digraph matching** is checked (default: **on**), the search engine also matches historical spelling variants:
 - ει matches η, ι, υ (all pronounced similarly in later Greek)
 - αι matches ε
 This helps find words that may have been spelled with different vowel letters in the original text vs. the OCR output.
 
+### Magnifier
+Hover over the scan image to see a **3× magnified lens** that follows your cursor — useful for checking small diacritics and breathing marks in polytonic Greek. The magnifier can be toggled on/off:
+
+- **Settings popup** — check ☐ Always-on magnifier
+- **Middle-click** on the image pane — quickly toggle the magnifier on or off
+- **Ctrl+M** — keyboard shortcut to toggle
+
+When the magnifier is off, the cursor changes back to a grab-hand for panning.
+
 ### Line numbers
-Click **☐ Lines** to toggle line numbers on the left side of the text pane. Lines that are blank or contain only metadata (e.g. `[header]`) are skipped by the numbering.
+In **Settings**, toggle **☐ Lines** to show/hide line numbers on the left side of the text pane. Lines that are blank or contain only metadata (e.g. `[header]`) are skipped by the numbering.
 
 ### Image source selector
 Use the **source dropdown** (between the page selector and the text source) to switch between multiple scan directories — e.g. `scans` (primary) and `scans2` (alternative/cleaner images of the same pages).
@@ -181,8 +190,26 @@ Use the **source dropdown** (between the page selector and the text source) to s
 ### Text source selector
 Use the **text source dropdown** (next to the image source) to switch between multiple OCR sources — e.g. `ocr` (polytonic Greek) and `el` (modern Greek). This allows comparing or saving to different text directories.
 
+### Settings
+Click **Settings** (no shortcut) to open a popup with the following toggles:
+
+| Setting | Default | Description |
+|---|---|---|
+| ☐ Lines | On | Show/hide line numbers in the text pane |
+| ☐ Always-on magnifier | Off | Keep the magnifier visible while hovering the image |
+| ☐ Force Greek | On | Auto-convert Latin letters to Greek in the text area and search box |
+| ☐ Digraph matching | On | Match historical spelling variants during search |
+| ☐ Restart button | On | Show/hide the Restart button in the toolbar |
+| ☐ Edit enabled by default | Off | Start every page in edit mode instead of view mode |
+| ☐ Auto-save (30s) | On | Automatically save the current page every 30 seconds when modified |
+
+All settings persist across page changes and browser refreshes via `localStorage`.
+
+### Help
+Click **Help** (no shortcut) to view a popup with a full reference of image-pane interactions, text-pane interactions, and global keyboard shortcuts.
+
 ### Server restart (hot‑reload)
-After editing the Go source, click the **Restart** button (or visit `/restart`) to recompile and restart the server in-place. The browser automatically refreshes after 1 second — no need to restart the terminal command.
+After editing the Go source, click the **Restart** button (or visit `/restart`) to recompile and restart the server in-place. The browser automatically refreshes after 1 second — no need to restart the terminal command. The button is disabled if Go or the source file is not found.
 
 ## Keyboard shortcuts
 
@@ -201,9 +228,16 @@ After editing the Go source, click the **Restart** button (or visit `/restart`) 
 ## Project structure
 
 ```
-├── proofreader.go       # single‑file Go server + embedded HTML/JS/CSS
+├── proofreader.go       # single‑file Go server + embedded HTML/CSS/JS
 ├── README.md
 ├── .gitignore
+├── reasonix.toml        # AI coding agent configuration
+├── gemini-prompt.txt    # prompt used with AI vision models for OCR
+├── screenshot.jpg       # screenshot for the README
+└── examples/            # ready‑to‑run sample scans + OCR text
+    ├── scans/
+    ├── ocr/
+    └── el/
 ```
 
 No dependencies beyond the Go standard library. No `go.mod`, no build step — just `go run`.
@@ -211,15 +245,6 @@ No dependencies beyond the Go standard library. No `go.mod`, no build step — j
 ## Why there is no need for binaries
 
 This program is distributed as **source code only** — no precompiled binaries, no installers. You get the Go compiler, and you're ready to go.
-
-### Install the Go compiler
-
-```bash
-# Debian / Ubuntu
-sudo apt update && sudo apt install golang-go
-```
-
-That's it. After installation, `go run proofreader.go /path/to/book` starts the editor.
 
 ### The real reason: customisation
 
