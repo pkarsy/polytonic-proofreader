@@ -102,12 +102,18 @@ import (
         "sort"
         "strconv"
         "strings"
+        "sync"
         "syscall"
         "time"
 )
 
 // ──── Types ────
 
+
+type saveRecord struct {
+        modTime time.Time
+        size    int64
+}
 
 type App struct {
         ProjectDir  string
@@ -117,6 +123,9 @@ type App struct {
         pageSources map[string][]int
         restartCmd  []string
         SourcePath  string // absolute path to proofreader.go
+
+        lastSaved   map[string]saveRecord
+        lastSavedMu sync.Mutex
 }
 
 type PageEntry struct {
@@ -158,7 +167,7 @@ func isImage(name string) bool {
 func NewApp(projectDir string) (*App, error) {
         projectDir, err := filepath.Abs(projectDir)
         if err != nil { return nil, err }
-        app := &App{ProjectDir: projectDir}
+        app := &App{ProjectDir: projectDir, lastSaved: make(map[string]saveRecord)}
 
         // Discover all scans* directories (no subdirectories inside them)
         entries, err := os.ReadDir(projectDir)
@@ -278,8 +287,16 @@ func (a *App) handleSave(w http.ResponseWriter, r *http.Request) {
         normalized := strings.ReplaceAll(payload.Text, "\u00b7", "\u0387")
         txtPath := a.txtPath(payload.Page, payload.Source)
         if err := os.WriteFile(txtPath, []byte(normalized), 0644); err != nil { http.Error(w, err.Error(), 500); return }
+        if fi, err := os.Stat(txtPath); err == nil {
+                key := payload.Page + "|" + strconv.Itoa(payload.Source)
+                a.lastSavedMu.Lock()
+                a.lastSaved[key] = saveRecord{modTime: fi.ModTime(), size: fi.Size()}
+                a.lastSavedMu.Unlock()
+        }
         writeJSON(w, map[string]string{"status": "ok", "savedLength": strconv.Itoa(len(normalized))})
 }
+const Version = "0.8.1"
+
 func writeJSON(w http.ResponseWriter, v any) { w.Header().Set("Content-Type", "application/json; charset=utf-8"); _ = json.NewEncoder(w).Encode(v) }
 
 func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
@@ -364,9 +381,19 @@ func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 				if fi, err := os.Stat(textPath); err == nil {
 					cur := &fileStat{modTime: fi.ModTime(), size: fi.Size()}
 					if lastText == nil || !cur.modTime.Equal(lastText.modTime) || cur.size != lastText.size {
-						lastText = cur
-						fmt.Fprintf(w, "event: text-changed\ndata: %d\n\n", cur.modTime.UnixMilli())
-						flusher.Flush()
+						// Check if this change was caused by our own save
+						key := page + "|" + strconv.Itoa(textSrcIdx)
+						a.lastSavedMu.Lock()
+						saved, wasSaved := a.lastSaved[key]
+						a.lastSavedMu.Unlock()
+						if wasSaved && cur.modTime.Equal(saved.modTime) && cur.size == saved.size {
+							// We saved this — just update lastText silently
+							lastText = cur
+						} else {
+							lastText = cur
+							fmt.Fprintf(w, "event: text-changed\ndata: %d\n\n", cur.modTime.UnixMilli())
+							flusher.Flush()
+						}
 					}
 				} else {
 					lastText = nil
@@ -541,7 +568,10 @@ const indexHTML = `<!doctype html>
         <input type="checkbox" id="showLineNums" onchange="toggleLineNumbers()" checked> Lines
       </label>
       <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
-        <input type="checkbox" id="magToggle" onchange="toggleMagnifier()"> Always-on magnifier
+        <input type="checkbox" id="magToggle" onchange="toggleMagnifier()"> Magnifier
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
+        <input type="checkbox" id="tempMagToggle" onchange="toggleTempMagnifier()"> Temporary magnifier
       </label>
       <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer">
         <input type="checkbox" id="forceGreekToggle" onchange="toggleForceGreek()" checked> Force Greek
@@ -572,7 +602,7 @@ const indexHTML = `<!doctype html>
             <tr><td style="padding:2px 6px">Wheel</td><td style="padding:2px 6px;color:#aaa">Scroll vertically</td></tr>
             <tr><td style="padding:2px 6px">Ctrl+Wheel</td><td style="padding:2px 6px;color:#aaa">Zoom in / out</td></tr>
             <tr><td style="padding:2px 6px">Double-click</td><td style="padding:2px 6px;color:#aaa">Fit width / 100%</td></tr>
-            <tr><td style="padding:2px 6px">Middle-click</td><td style="padding:2px 6px;color:#aaa">Toggle magnifier</td></tr>
+            <tr><td style="padding:2px 6px">Middle-click</td><td style="padding:2px 6px;color:#aaa">Toggle magnifier / hold to magnify</td></tr>
           </table>
         </div>
         <div>
@@ -592,6 +622,7 @@ const indexHTML = `<!doctype html>
         <tr><td style="padding:3px 10px;white-space:nowrap">Ctrl+G</td><td style="padding:3px 10px;color:#aaa">Force Greek</td><td style="padding:3px 10px;white-space:nowrap">Ctrl+M</td><td style="padding:3px 10px;color:#aaa">Magnifier</td></tr>
         <tr><td style="padding:3px 10px;white-space:nowrap">Ctrl+D</td><td style="padding:3px 10px;color:#aaa">Digraph match</td><td style="padding:3px 10px;white-space:nowrap">Ctrl+Z/Y</td><td style="padding:3px 10px;color:#aaa">Undo / Redo</td></tr>
       </table>
+            <p style="text-align:center;color:var(--muted);font-size:13px;margin:16px 0 0">v0.8.1</p>
       <div class="btns" style="margin-top:12px"><button onclick="toggleHelp()">Close</button></div>
     </div>
   </div>
@@ -608,6 +639,7 @@ const latinToGreek={'a':'α','b':'β','c':'ψ','d':'δ','e':'ε','f':'φ','g':'�
 let forceGreek = localStorage.getItem('proofreaderForceGreek') !== '0';
 let digraphMatch = localStorage.getItem('proofreaderDigraph') !== '0';
 let autoSaveEnabled = localStorage.getItem('proofreaderAutoSave') !== '0';
+let tempMagnifier = localStorage.getItem('proofreaderTempMagnifier') === '1';
 let editorFontSize = Number(localStorage.getItem("proofreaderEditorFontSize") || "20");
 
 // Text pane drag-scroll state
@@ -621,6 +653,8 @@ let textScrollTop = 0;
 let imgX=0, imgY=0;
 let dragging=false, dragStartX=0, dragStartY=0, dragImgX=0, dragImgY=0;
 let findTerm="", findMatches=[], findIndex=0;
+let middleDown=false;
+const APP_VERSION = "0.8.1";
 const scan=document.getElementById("scan"), editor=document.getElementById("editor"), statusEl=document.getElementById("status"), pageEl=document.getElementById("pageSelect"), sourceEl=document.getElementById("sourceSelect"), left=document.getElementById("left");
 
 editor.addEventListener("input",()=>{
@@ -644,9 +678,9 @@ const mag = document.getElementById('magnifier');
 const MAG_ZOOM = 3;
 const MAG_SIZE = 130;
 function magShouldShow(){ return document.getElementById('magToggle').checked; }
-function updateMagActive(){ left.classList.toggle('mag-active', magShouldShow()); if(!magShouldShow()) mag.style.display='none'; }
-left.addEventListener("mousemove",(e)=>{
-  if(dragging||!scan.naturalWidth||!magShouldShow()){ mag.style.display='none'; return; }
+function magIsActive(){ return magShouldShow() || (tempMagnifier && middleDown); }
+function updateMagActive(){ left.classList.toggle('mag-active', magIsActive()); if(!magIsActive()) mag.style.display='none'; }
+function positionMag(e){
   const rect=left.getBoundingClientRect();
   const mx=e.clientX-rect.left, my=e.clientY-rect.top;
   mag.style.left=(mx-MAG_SIZE/2)+'px';
@@ -656,9 +690,14 @@ left.addEventListener("mousemove",(e)=>{
   mag.style.backgroundSize=scan.naturalWidth*mz+'px '+scan.naturalHeight*mz+'px';
   mag.style.backgroundPosition=(-(mx-imgX)*MAG_ZOOM+MAG_SIZE/2)+'px '+(-(my-imgY)*MAG_ZOOM+MAG_SIZE/2)+'px';
   mag.style.display='block';
+}
+left.addEventListener("mousemove",(e)=>{
+  if(dragging||!scan.naturalWidth||!magIsActive()){ mag.style.display='none'; return; }
+  positionMag(e);
 });
 left.addEventListener("mouseleave",()=>{ mag.style.display='none'; });
-left.addEventListener("mousedown",(e)=>{ if(e.button!==1) return; e.preventDefault(); var cb=document.getElementById('magToggle'); cb.checked=!cb.checked; toggleMagnifier(); });
+left.addEventListener("mousedown",(e)=>{ if(e.button!==1) return; e.preventDefault(); if(tempMagnifier){ middleDown=true; updateMagActive(); positionMag(e); return; } var cb=document.getElementById('magToggle'); cb.checked=!cb.checked; toggleMagnifier(); if(cb.checked) positionMag(e); });
+window.addEventListener("mouseup",(e)=>{ if(e.button!==1) return; if(!middleDown) return; middleDown=false; updateMagActive(); });
 
 // -------------------------
 // TEXT PANE
@@ -830,6 +869,7 @@ window.addEventListener("keydown",async(e)=>{
   }
 
   if(isCtrl && code==="KeyM"){
+    if(tempMagnifier) return false;
     e.preventDefault();
     document.getElementById('magToggle').click();
     return false;
@@ -885,8 +925,23 @@ function toggleHelp(){
 }
 function toggleMagnifier(){
   const on = document.getElementById('magToggle').checked;
+  // Mutual exclusion: turning always-on on disables temp mode
+  if(on && tempMagnifier){
+    document.getElementById('tempMagToggle').checked = false;
+    tempMagnifier = false;
+    localStorage.setItem('proofreaderTempMagnifier', '0');
+  }
   updateMagActive();
   localStorage.setItem('proofreaderMagnifier', on ? '1' : '0');
+}
+function toggleTempMagnifier(){
+  tempMagnifier = document.getElementById('tempMagToggle').checked;
+  if(tempMagnifier){
+    document.getElementById('magToggle').checked = false;
+    toggleMagnifier();
+  }
+  updateMagActive();
+  localStorage.setItem('proofreaderTempMagnifier', tempMagnifier ? '1' : '0');
 }
 function toggleRestartBtn(){
   const show = document.getElementById('restartBtnToggle').checked;
@@ -949,6 +1004,10 @@ async function init(){
   const savedMag = localStorage.getItem('proofreaderMagnifier');
   if(savedMag === '1'){
     document.getElementById('magToggle').checked = true;
+  }
+  if(tempMagnifier){
+    document.getElementById('tempMagToggle').checked = true;
+    document.getElementById('magToggle').checked = false;
   }
   updateMagActive();
   // Restore Restart button checkbox state
@@ -1129,7 +1188,7 @@ function loadViewportState(pageName){
 function updateTitle(){
   const marker = modified ? "*" : "";
   const name = page ? page.replace(/\.[^.]+$/, '') : "home";
-  document.title = name + " - Polytonic Proofreader" + marker;
+  document.title = marker + name + " - Polytonic Proofreader";
 }
 
 function setStatus(s){ statusEl.textContent=s; }
@@ -1398,7 +1457,7 @@ func main() {
         http.HandleFunc("/restart", app.handleRestart)
         http.HandleFunc("/image/{page}", app.handleImage)
         addr := "localhost:" + port
-        fmt.Printf("\nPolytonic Proofreader running at http://%s/\n", addr)
+        fmt.Printf("\nPolytonic Proofreader v%s running at http://%s/\n", Version, addr)
         fmt.Printf("Project: %s\n", app.ProjectDir)
         fmt.Printf("Pages found: %d\n", len(app.Pages))
         log.Fatal(http.ListenAndServe(addr, nil))
