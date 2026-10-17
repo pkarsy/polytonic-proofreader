@@ -37,7 +37,7 @@ was needed:
    go run proofreader.go my_book
    ```
 - **Open** the link the proofreader shows in a browser tab.
-- **Get OCR text from an AI vision model** — in a nearby browser tab, feed each scan image to an AI vision model (e.g. Gemini, GPT‑4o, Claude) together with a prompt instructing it to output polytonic Greek. Copy the returned OCR text.
+- **Get OCR text from an AI vision model** — in a nearby browser tab, feed each scan image to an AI vision model (e.g. Gemini, GPT) together with a prompt instructing it to output polytonic Greek. Copy the returned OCR text.
 - **Navigate to the page** — use the **← Previous** / **Next →** toolbar buttons to go to the page you just processed.
 - **Paste the OCR** — paste the AI's output into the text pane on the right.
 - **Proofread** — compare the scan image (left) against the text (right). Use the **accent‑ignoring search** (Ctrl+F) to spot-check dubious words, and the **Greek character palette** (Ctrl+P) to type corrections. The AI vision model can also suggest what to check again — follow its recommendations.
@@ -314,7 +314,7 @@ Everything is in one file, every feature is a few lines of JavaScript or Go away
 The **Go server is script-agnostic** — only the embedded frontend (character palette, transliteration map, text detection) is script-specific. To adapt this tool for Arabic, Cyrillic, Hebrew, or any other writing system:
 
 1. **Copy** `proofreader.go` → `your-fork.go`
-2. **Give it to an AI** — paste the file into any code agent (Claude, GPT, Gemini) or web AI chat tool and tell it what script you need **and which platform you are on** (see below). Since everything is in one self-contained file with clear section markers, the AI will understand the structure and make the changes.
+2. **Give it to an AI** — paste the file into any code agent (GPT, Gemini, DeepSeek etc) or web AI chat tool and tell it what script you need **and which platform you are on** (see below). Since everything is in one self-contained file with clear section markers, the AI will understand the structure and make the changes.
 3. **Run** with `go run your-fork.go /path/to/project`.
 
 ### 🖥️ Tell the AI your platform too
