@@ -29,7 +29,7 @@
 //   • Hot-restart — /restart recompiles and replaces the server
 //   • Save warnings — length-drop detection, text-type mismatch
 //   • Line numbering — skips metadata lines like [header]
-//   • Page grouping — images sharing a 3-char prefix are variants
+//   • Source variants — the same file name in several scans* dirs
 //
 // ── What is script-specific (replace for another script) ───────
 //
@@ -72,6 +72,14 @@
 //   3. Update the localStorage prefix (search for "proofreader"
 //      in the JS — replace `proofreader` with your own prefix).
 //   4. Rename the Go file, update findGoSource(), and you're done.
+//   5. State the target platform. The program is deliberately one
+//      file, so the restart code cannot live in separate
+//      build-tagged files; it uses syscall.Exec, which is
+//      Unix-only. For a Windows fork, either replace it in this
+//      same file with os/exec + os.Exit (the restarted process is
+//      then detached from the original tree, so it can be less
+//      reliable under a pipe or supervisor) or remove the Restart
+//      button.
 //
 // ── Run ──────────────────────────────────────────────────────────
 //
@@ -89,215 +97,325 @@
 package main
 
 import (
-        "encoding/json"
-        "fmt"
-        "html/template"
-        "log"
-        "mime"
-        "net/http"
-        "os"
-        "os/exec"
-        "path/filepath"
-        "runtime"
-        "sort"
-        "strconv"
-        "strings"
-        "sync"
-        "syscall"
-        "time"
+	"encoding/json"
+	"fmt"
+	"html/template"
+	"log"
+	"mime"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
 )
 
 // ──── Types ────
 
-
 type saveRecord struct {
-        modTime time.Time
-        size    int64
+	modTime time.Time
+	size    int64
 }
 
 type App struct {
-        ProjectDir  string
-        ScanDirs    []string
-        TextDirs    []string
-        Pages       []string
-        pageSources map[string][]int
-        restartCmd  []string
-        SourcePath  string // absolute path to proofreader.go
+	ProjectDir  string
+	ScanDirs    []string
+	TextDirs    []string
+	Pages       []string
+	pageSources map[string][]int
+	restartCmd  []string
+	SourcePath  string // absolute path to proofreader.go
+	indexTmpl   *template.Template
 
-        lastSaved   map[string]saveRecord
-        lastSavedMu sync.Mutex
+	lastSaved   map[string]saveRecord
+	lastSavedMu sync.Mutex
 }
 
 type PageEntry struct {
-        Name    string `json:"name"`
-        Sources []int  `json:"sources"`
+	Name    string `json:"name"`
+	Sources []int  `json:"sources"`
 }
 type ListPayload struct {
-        ScanDirs []string    `json:"scanDirs"`
-        TextDirs []string    `json:"textDirs"`
-        Pages    []PageEntry `json:"pages"`
+	ScanDirs []string    `json:"scanDirs"`
+	TextDirs []string    `json:"textDirs"`
+	Pages    []PageEntry `json:"pages"`
 }
 
 type PagePayload struct {
-        Page  string `json:"page"`
-        Text  string `json:"text"`
-        Index int    `json:"index"`
-        Total int    `json:"total"`
+	Page  string `json:"page"`
+	Text  string `json:"text"`
+	Index int    `json:"index"`
+	Total int    `json:"total"`
 }
 
 type SavePayload struct {
-        Page   string `json:"page"`
-        Text   string `json:"text"`
-        Source int    `json:"source"`
+	Page   string `json:"page"`
+	Text   string `json:"text"`
+	Source int    `json:"source"`
 }
 
 // ──── Helpers ────
 
 func isImage(name string) bool {
-        switch strings.ToLower(filepath.Ext(name)) {
-        case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".tif", ".tiff":
-                return true
-        default:
-                return false
-        }
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".tif", ".tiff":
+		return true
+	default:
+		return false
+	}
+}
+
+// writeFileAtomic writes data to path without ever leaving a partial file
+// behind: it writes to a temporary file in the same directory, flushes it to
+// disk, then renames it over the target. A crash or full disk mid-write
+// therefore leaves the previous contents intact. If the target already
+// exists its permissions are preserved.
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	if fi, err := os.Stat(path); err == nil {
+		perm = fi.Mode().Perm()
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName) // no-op once the rename below succeeds
+
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(perm); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 // ──── App initialization ────
 
 func NewApp(projectDir string) (*App, error) {
-        projectDir, err := filepath.Abs(projectDir)
-        if err != nil { return nil, err }
-        app := &App{ProjectDir: projectDir, lastSaved: make(map[string]saveRecord)}
+	projectDir, err := filepath.Abs(projectDir)
+	if err != nil {
+		return nil, err
+	}
+	app := &App{ProjectDir: projectDir, lastSaved: make(map[string]saveRecord)}
 
-        // Discover all scans* directories (no subdirectories inside them)
-        entries, err := os.ReadDir(projectDir)
-        if err != nil { return nil, fmt.Errorf("cannot read project dir: %w", err) }
-        app.pageSources = make(map[string][]int)
-        pageOrder := make(map[string]int)
-        for _, e := range entries {
-                if !e.IsDir() || !strings.HasPrefix(e.Name(), "scans") { continue }
-                app.ScanDirs = append(app.ScanDirs, e.Name())
-        }
-        sort.Strings(app.ScanDirs)
-        // scans comes first (it's the primary folder)
-        for i, d := range app.ScanDirs {
-                if d == "scans" && i > 0 {
-                        app.ScanDirs[0], app.ScanDirs[i] = app.ScanDirs[i], app.ScanDirs[0]
-                        break
-                }
-        }
-        for si, dir := range app.ScanDirs {
-                full := filepath.Join(projectDir, dir)
-                fentries, err := os.ReadDir(full)
-                if err != nil { continue }
-                for _, fe := range fentries {
-                        if fe.IsDir() || !isImage(fe.Name()) { continue }
-                        app.pageSources[fe.Name()] = append(app.pageSources[fe.Name()], si)
-                        if _, seen := pageOrder[fe.Name()]; !seen {
-                                pageOrder[fe.Name()] = len(app.Pages)
-                                app.Pages = append(app.Pages, fe.Name())
-                        }
-                }
-        }
-        sort.Strings(app.Pages)
+	// Discover all scans* directories (no subdirectories inside them)
+	entries, err := os.ReadDir(projectDir)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read project dir: %w", err)
+	}
+	app.pageSources = make(map[string][]int)
+	pageOrder := make(map[string]int)
+	for _, e := range entries {
+		if !e.IsDir() || !strings.HasPrefix(e.Name(), "scans") {
+			continue
+		}
+		app.ScanDirs = append(app.ScanDirs, e.Name())
+	}
+	sort.Strings(app.ScanDirs)
+	// scans comes first (it's the primary folder)
+	for i, d := range app.ScanDirs {
+		if d == "scans" && i > 0 {
+			app.ScanDirs[0], app.ScanDirs[i] = app.ScanDirs[i], app.ScanDirs[0]
+			break
+		}
+	}
+	for si, dir := range app.ScanDirs {
+		full := filepath.Join(projectDir, dir)
+		fentries, err := os.ReadDir(full)
+		if err != nil {
+			continue
+		}
+		for _, fe := range fentries {
+			if fe.IsDir() || !isImage(fe.Name()) {
+				continue
+			}
+			app.pageSources[fe.Name()] = append(app.pageSources[fe.Name()], si)
+			if _, seen := pageOrder[fe.Name()]; !seen {
+				pageOrder[fe.Name()] = len(app.Pages)
+				app.Pages = append(app.Pages, fe.Name())
+			}
+		}
+	}
+	sort.Strings(app.Pages)
 
-        if len(app.ScanDirs) == 0 {
-                return nil, fmt.Errorf("no 'scans*' directory found in %s -- create a folder named 'scans' with page images", app.ProjectDir)
-        }
-        if len(app.Pages) == 0 {
-                return nil, fmt.Errorf("no image files found in %v -- place at least one .jpg/.png/.webp/.gif/.tif file inside a 'scans' folder", app.ScanDirs)
-        }
+	if len(app.ScanDirs) == 0 {
+		return nil, fmt.Errorf("no 'scans*' directory found in %s -- create a folder named 'scans' with page images", app.ProjectDir)
+	}
+	if len(app.Pages) == 0 {
+		return nil, fmt.Errorf("no image files found in %v -- place at least one .jpg/.png/.webp/.gif/.tif file inside a 'scans' folder", app.ScanDirs)
+	}
 
-        // Auto-create missing text directory (ocr or el)
-        for _, name := range []string{"ocr", "el"} {
-                full := filepath.Join(projectDir, name)
-                if info, err := os.Stat(full); err == nil && info.IsDir() {
-                        app.TextDirs = append(app.TextDirs, name)
-                }
-        }
-        if len(app.TextDirs) == 0 {
-                // Neither exists — create ocr/ as default
-                ocrDir := filepath.Join(projectDir, "ocr")
-                if err := os.MkdirAll(ocrDir, 0755); err != nil {
-                        return nil, fmt.Errorf("cannot create 'ocr' directory: %w", err)
-                }
-                app.TextDirs = append(app.TextDirs, "ocr")
-                fmt.Printf("Created missing 'ocr' directory: %s\n", ocrDir)
-        }
-        return app, nil
+	// Auto-create missing text directory (ocr or el)
+	for _, name := range []string{"ocr", "el"} {
+		full := filepath.Join(projectDir, name)
+		if info, err := os.Stat(full); err == nil && info.IsDir() {
+			app.TextDirs = append(app.TextDirs, name)
+		}
+	}
+	if len(app.TextDirs) == 0 {
+		// Neither exists — create ocr/ as default
+		ocrDir := filepath.Join(projectDir, "ocr")
+		if err := os.MkdirAll(ocrDir, 0755); err != nil {
+			return nil, fmt.Errorf("cannot create 'ocr' directory: %w", err)
+		}
+		app.TextDirs = append(app.TextDirs, "ocr")
+		fmt.Printf("Created missing 'ocr' directory: %s\n", ocrDir)
+	}
+
+	// Parse the embedded frontend once, at startup, instead of on every request.
+	// A malformed template then fails here with a clear error rather than
+	// panicking inside the handler on every page load.
+	tmpl, tmplErr := template.New("index").Parse(indexHTML)
+	if tmplErr != nil {
+		return nil, fmt.Errorf("cannot parse index template: %w", tmplErr)
+	}
+	app.indexTmpl = tmpl
+	return app, nil
 }
 
 // ──── Page/text path helpers ────
 
-func (a *App) pageIndex(page string) int { for i, p := range a.Pages { if p == page { return i } }; return -1 }
+func (a *App) pageIndex(page string) int {
+	for i, p := range a.Pages {
+		if p == page {
+			return i
+		}
+	}
+	return -1
+}
 func (a *App) txtPath(page string, srcIdx int) string {
-        if srcIdx < 0 || srcIdx >= len(a.TextDirs) { srcIdx = 0 }
-        return filepath.Join(a.ProjectDir, a.TextDirs[srcIdx], strings.TrimSuffix(page, filepath.Ext(page))+".txt")
+	if srcIdx < 0 || srcIdx >= len(a.TextDirs) {
+		srcIdx = 0
+	}
+	return filepath.Join(a.ProjectDir, a.TextDirs[srcIdx], strings.TrimSuffix(page, filepath.Ext(page))+".txt")
 }
 
 // ──── HTTP handlers ────
 
 func (a *App) handleIndex(w http.ResponseWriter, r *http.Request) {
-        t := template.Must(template.New("index").Parse(indexHTML))
-        avail := a.restartCmd != nil
-        if err := t.Execute(w, map[string]bool{"RestartAvailable": avail}); err != nil { http.Error(w, err.Error(), 500) }
+	// Version is injected here so the frontend has a single source of truth.
+	data := struct {
+		RestartAvailable bool
+		Version          string
+	}{RestartAvailable: a.restartCmd != nil, Version: Version}
+	if err := a.indexTmpl.Execute(w, data); err != nil {
+		http.Error(w, err.Error(), 500)
+	}
 }
 func (a *App) handleList(w http.ResponseWriter, r *http.Request) {
-        entries := make([]PageEntry, len(a.Pages))
-        for i, p := range a.Pages {
-                entries[i] = PageEntry{Name: p, Sources: a.pageSources[p]}
-        }
-        writeJSON(w, ListPayload{ScanDirs: a.ScanDirs, TextDirs: a.TextDirs, Pages: entries})
+	entries := make([]PageEntry, len(a.Pages))
+	for i, p := range a.Pages {
+		entries[i] = PageEntry{Name: p, Sources: a.pageSources[p]}
+	}
+	writeJSON(w, ListPayload{ScanDirs: a.ScanDirs, TextDirs: a.TextDirs, Pages: entries})
 }
 func (a *App) handleImage(w http.ResponseWriter, r *http.Request) {
-        page := r.PathValue("page")
-        if a.pageIndex(page) < 0 { http.NotFound(w, r); return }
-        srcIdx := 0
-        if s := r.URL.Query().Get("source"); s != "" {
-                if v, err := strconv.Atoi(s); err == nil { srcIdx = v }
-        }
-        if srcIdx < 0 || srcIdx >= len(a.ScanDirs) { srcIdx = 0 }
-        dir := a.ScanDirs[srcIdx]
-        path := filepath.Join(a.ProjectDir, dir, page)
-        if mt := mime.TypeByExtension(strings.ToLower(filepath.Ext(path))); mt != "" { w.Header().Set("Content-Type", mt) }
-        http.ServeFile(w, r, path)
+	page := r.PathValue("page")
+	if a.pageIndex(page) < 0 {
+		http.NotFound(w, r)
+		return
+	}
+	srcIdx := 0
+	if s := r.URL.Query().Get("source"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			srcIdx = v
+		}
+	}
+	if srcIdx < 0 || srcIdx >= len(a.ScanDirs) {
+		srcIdx = 0
+	}
+	dir := a.ScanDirs[srcIdx]
+	path := filepath.Join(a.ProjectDir, dir, page)
+	if mt := mime.TypeByExtension(strings.ToLower(filepath.Ext(path))); mt != "" {
+		w.Header().Set("Content-Type", mt)
+	}
+	http.ServeFile(w, r, path)
 }
 func (a *App) handleText(w http.ResponseWriter, r *http.Request) {
-        page := r.URL.Query().Get("page")
-        if page == "" && len(a.Pages) > 0 { page = a.Pages[0] }
-        idx := a.pageIndex(page)
-        if idx < 0 { http.Error(w, "unknown page", 404); return }
-        srcIdx := 0
-        if s := r.URL.Query().Get("source"); s != "" {
-                if v, err := strconv.Atoi(s); err == nil { srcIdx = v }
-        }
-        txtPath := a.txtPath(page, srcIdx)
-        textBytes, err := os.ReadFile(txtPath)
-        if os.IsNotExist(err) {
-                textBytes = []byte("")
-                if err := os.WriteFile(txtPath, textBytes, 0644); err != nil { http.Error(w, err.Error(), 500); return }
-        } else if err != nil { http.Error(w, err.Error(), 500); return }
-        writeJSON(w, PagePayload{Page: page, Text: string(textBytes), Index: idx, Total: len(a.Pages)})
+	page := r.URL.Query().Get("page")
+	if page == "" && len(a.Pages) > 0 {
+		page = a.Pages[0]
+	}
+	idx := a.pageIndex(page)
+	if idx < 0 {
+		http.Error(w, "unknown page", 404)
+		return
+	}
+	srcIdx := 0
+	if s := r.URL.Query().Get("source"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			srcIdx = v
+		}
+	}
+	txtPath := a.txtPath(page, srcIdx)
+	textBytes, err := os.ReadFile(txtPath)
+	if os.IsNotExist(err) {
+		// A missing file is not an error: the page simply has no text yet.
+		// A GET must not create it — GET is safe, and the directory may be
+		// read-only. /api/save creates the file when the user first saves.
+		textBytes = []byte("")
+	} else if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	writeJSON(w, PagePayload{Page: page, Text: string(textBytes), Index: idx, Total: len(a.Pages)})
 }
 func (a *App) handleSave(w http.ResponseWriter, r *http.Request) {
-        if r.Method != http.MethodPost { http.Error(w, "POST required", 405); return }
-        var payload SavePayload
-        if err := json.NewDecoder(r.Body).Decode(&payload); err != nil { http.Error(w, err.Error(), 400); return }
-        if a.pageIndex(payload.Page) < 0 { http.Error(w, "unknown page", 404); return }
-        normalized := strings.ReplaceAll(payload.Text, "\u00b7", "\u0387")
-        txtPath := a.txtPath(payload.Page, payload.Source)
-        if err := os.WriteFile(txtPath, []byte(normalized), 0644); err != nil { http.Error(w, err.Error(), 500); return }
-        if fi, err := os.Stat(txtPath); err == nil {
-                key := payload.Page + "|" + strconv.Itoa(payload.Source)
-                a.lastSavedMu.Lock()
-                a.lastSaved[key] = saveRecord{modTime: fi.ModTime(), size: fi.Size()}
-                a.lastSavedMu.Unlock()
-        }
-        writeJSON(w, map[string]string{"status": "ok", "savedLength": strconv.Itoa(len(normalized))})
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", 405)
+		return
+	}
+	var payload SavePayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	if a.pageIndex(payload.Page) < 0 {
+		http.Error(w, "unknown page", 404)
+		return
+	}
+	// Reject an out-of-range source instead of letting txtPath clamp it to 0,
+	// which would silently overwrite the wrong directory.
+	if payload.Source < 0 || payload.Source >= len(a.TextDirs) {
+		http.Error(w, "invalid text source", 400)
+		return
+	}
+	normalized := strings.ReplaceAll(payload.Text, "\u00b7", "\u0387")
+	txtPath := a.txtPath(payload.Page, payload.Source)
+	if err := writeFileAtomic(txtPath, []byte(normalized), 0644); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	if fi, err := os.Stat(txtPath); err == nil {
+		key := payload.Page + "|" + strconv.Itoa(payload.Source)
+		a.lastSavedMu.Lock()
+		a.lastSaved[key] = saveRecord{modTime: fi.ModTime(), size: fi.Size()}
+		a.lastSavedMu.Unlock()
+	}
+	writeJSON(w, map[string]string{"status": "ok", "savedLength": strconv.Itoa(len(normalized))})
 }
+
 const Version = "0.8.1"
 
-func writeJSON(w http.ResponseWriter, v any) { w.Header().Set("Content-Type", "application/json; charset=utf-8"); _ = json.NewEncoder(w).Encode(v) }
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(v)
+}
 
 func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 	page := r.URL.Query().Get("page")
@@ -404,46 +522,72 @@ func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleRestart(w http.ResponseWriter, r *http.Request) {
-        if a.restartCmd == nil {
-                w.Header().Set("Content-Type", "text/html; charset=utf-8")
-                fmt.Fprint(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="2;url=/"><title>Restart unavailable</title><style>body{font-family:system-ui,sans-serif;padding:3em;text-align:center;background:#1e1e1e;color:#f0f0f0}h1{color:#e74c3c}</style></head><body><h1>Restart unavailable</h1><p>The Go binary or source file was not found when the server started.</p><p>Make sure <code>go</code> is installed and <code>proofreader.go</code> is present.</p><p>Returning to the editor…</p></body></html>`)
-                return
-        }
-        log.Printf("[%s] restart triggered via %s", time.Now().Format(time.RFC3339), r.RemoteAddr)
-        w.Header().Set("Content-Type", "text/html; charset=utf-8")
-        fmt.Fprint(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="1;url=/"><title>Restarting</title><style>body{font-family:system-ui,sans-serif;padding:3em;text-align:center;background:#1e1e1e;color:#f0f0f0}</style></head><body><h1>Restarting…</h1><p>The server will reload in 1 second.</p></body></html>`)
-        if f, ok := w.(http.Flusher); ok {
-                f.Flush()
-        }
-        go func() {
-                time.Sleep(200 * time.Millisecond)
-                log.Printf("[%s] executing: %v", time.Now().Format(time.RFC3339), a.restartCmd)
-                syscall.Exec(a.restartCmd[0], a.restartCmd, os.Environ())
-        }()
+	// The Restart button is a top-level navigation (Sec-Fetch-Site: same-origin)
+	// and a typed URL or bookmark is "none"; a request fired by another site is
+	// "cross-site". Only the two user-initiated kinds may restart the server.
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "", "same-origin", "none":
+	default:
+		http.Error(w, "cross-site restart blocked", 403)
+		return
+	}
+	if a.restartCmd == nil {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="2;url=/"><title>Restart unavailable</title><style>body{font-family:system-ui,sans-serif;padding:3em;text-align:center;background:#1e1e1e;color:#f0f0f0}h1{color:#e74c3c}</style></head><body><h1>Restart unavailable</h1><p>The Go binary or source file was not found when the server started.</p><p>Make sure <code>go</code> is installed and <code>proofreader.go</code> is present.</p><p>Returning to the editor…</p></body></html>`)
+		return
+	}
+	log.Printf("[%s] restart triggered via %s", time.Now().Format(time.RFC3339), r.RemoteAddr)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprint(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="1;url=/"><title>Restarting</title><style>body{font-family:system-ui,sans-serif;padding:3em;text-align:center;background:#1e1e1e;color:#f0f0f0}</style></head><body><h1>Restarting…</h1><p>The server will reload in 1 second.</p></body></html>`)
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		log.Printf("[%s] executing: %v", time.Now().Format(time.RFC3339), a.restartCmd)
+		if err := execSelf(a.restartCmd); err != nil {
+			log.Printf("[%s] restart failed: %v", time.Now().Format(time.RFC3339), err)
+		}
+	}()
 }
 
 // ──── Restart helper ────
 
 func findGoSource() string {
-        // Use runtime.Caller to find this source file's directory,
-        // then look for proofreader.go there and in parent dirs.
-        _, file, _, ok := runtime.Caller(0)
-        if !ok {
-                return ""
-        }
-        dir := filepath.Dir(file)
-        for dir != "" {
-                candidate := filepath.Join(dir, "proofreader.go")
-                if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-                        return candidate
-                }
-                parent := filepath.Dir(dir)
-                if parent == dir {
-                        break
-                }
-                dir = parent
-        }
-        return ""
+	// Use runtime.Caller to find this source file's directory,
+	// then look for proofreader.go there and in parent dirs.
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return ""
+	}
+	dir := filepath.Dir(file)
+	for dir != "" {
+		candidate := filepath.Join(dir, "proofreader.go")
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return ""
+}
+
+// execSelf replaces the running process with cmd, keeping the same PID and the
+// inherited environment. It only returns if the exec fails.
+//
+// syscall.Exec is Unix-only. The portable alternative — spawn the replacement
+// with os/exec and os.Exit — detaches it from this process's tree and stdout, so
+// it dies when the parent's process group or output pipe is torn down (verified
+// both with piped stdout and with a file redirect). Windows support would need
+// this code split into build-tagged files, which in turn breaks
+// `go run proofreader.go`, because that command compiles only the named file —
+// and it is both the documented way to start the program and what the Restart
+// button re-executes. Keeping it in this single file therefore means Unix only.
+func execSelf(cmd []string) error {
+	return syscall.Exec(cmd[0], cmd, os.Environ())
 }
 
 // ──── Embedded frontend (HTML/CSS/JS) ────
@@ -621,8 +765,9 @@ const indexHTML = `<!doctype html>
         <tr><td style="padding:3px 10px;white-space:nowrap">Ctrl+F</td><td style="padding:3px 10px;color:#aaa">Focus search</td><td style="padding:3px 10px;white-space:nowrap">Ctrl+P</td><td style="padding:3px 10px;color:#aaa">Greek palette</td></tr>
         <tr><td style="padding:3px 10px;white-space:nowrap">Ctrl+G</td><td style="padding:3px 10px;color:#aaa">Force Greek</td><td style="padding:3px 10px;white-space:nowrap">Ctrl+M</td><td style="padding:3px 10px;color:#aaa">Magnifier</td></tr>
         <tr><td style="padding:3px 10px;white-space:nowrap">Ctrl+D</td><td style="padding:3px 10px;color:#aaa">Digraph match</td><td style="padding:3px 10px;white-space:nowrap">Ctrl+Z/Y</td><td style="padding:3px 10px;color:#aaa">Undo / Redo</td></tr>
+        <tr><td style="padding:3px 10px;white-space:nowrap">Enter</td><td style="padding:3px 10px;color:#aaa">Next match (in Find)</td><td style="padding:3px 10px;white-space:nowrap">Shift+Enter</td><td style="padding:3px 10px;color:#aaa">Previous match</td></tr>
       </table>
-            <p style="text-align:center;color:var(--muted);font-size:13px;margin:16px 0 0">v0.8.1</p>
+            <p style="text-align:center;color:var(--muted);font-size:13px;margin:16px 0 0">v{{.Version}}</p>
       <div class="btns" style="margin-top:12px"><button onclick="toggleHelp()">Close</button></div>
     </div>
   </div>
@@ -654,7 +799,6 @@ let imgX=0, imgY=0;
 let dragging=false, dragStartX=0, dragStartY=0, dragImgX=0, dragImgY=0;
 let findTerm="", findMatches=[], findIndex=0;
 let middleDown=false;
-const APP_VERSION = "0.8.1";
 const scan=document.getElementById("scan"), editor=document.getElementById("editor"), statusEl=document.getElementById("status"), pageEl=document.getElementById("pageSelect"), sourceEl=document.getElementById("sourceSelect"), left=document.getElementById("left");
 
 editor.addEventListener("input",()=>{
@@ -894,7 +1038,10 @@ window.addEventListener("keydown",async(e)=>{
 },true);
 
 document.getElementById('findInput').addEventListener('keydown', (e) => {
-  if(e.key==='Enter') e.preventDefault();
+  if(e.key==='Enter'){
+    e.preventDefault();
+    jumpToFind(e.shiftKey ? -1 : 1);
+  }
 });
 
 function toggleForceGreek(){
@@ -975,7 +1122,7 @@ function rebuildTextSourceSelect(){
   let html='';
   for(let i=0; i<textDirs.length; i++){
     const sel = (i===textSourceIndex) ? ' selected' : '';
-    html += '<option value="'+i+'">'+textDirs[i]+'</option>';
+    html += '<option value="'+i+'"'+sel+'>'+textDirs[i]+'</option>';
   }
   document.getElementById('textSourceSelect').innerHTML = html;
 }
@@ -1032,7 +1179,7 @@ async function init(){
     }
   }
   // Auto-save every 30 seconds when modified and auto-save is enabled
-  setInterval(async () => { if(autoSaveEnabled && modified && page) await saveText(); }, 30000);
+  setInterval(async () => { if(autoSaveEnabled && modified && page) await saveText(true); }, 30000);
 }
 function warnUnsaved() {
   return new Promise((resolve) => {
@@ -1076,6 +1223,13 @@ function connectEvents(){
   });
   eventSource.addEventListener("text-changed", async () => {
     const data=await fetch("/api/text?page="+encodeURIComponent(page)+"&source="+textSourceIndex).then(r=>r.json());
+    if(modified){
+      // Reloading here would silently discard unsaved corrections, so keep the
+      // editor contents and let the user decide (Save overwrites, or navigate
+      // away and back to reload).
+      setStatus("changed on disk — not reloaded (unsaved edits)");
+      return;
+    }
     editor.value=data.text;
     savedText=data.text;
     modified=false;
@@ -1096,8 +1250,12 @@ async function loadPage(idx){
   if(page) saveViewportState(page);
   if (!(await maybeWarnAndProceed())) { return; }
   pageIndex=idx;
-  sourceIndex=0;
-  textSourceIndex=0;
+  // Keep the chosen image/text sources when moving between pages. Text sources
+  // are global, but a page may not exist in the current scan directory, so fall
+  // back to the first source that page does have.
+  if(!entry.sources || entry.sources.indexOf(sourceIndex) < 0){
+    sourceIndex = (entry.sources && entry.sources.length) ? entry.sources[0] : 0;
+  }
   page=name;
   currentTitlePage=name;
   await loadTextForPage(name);
@@ -1111,11 +1269,17 @@ async function loadPage(idx){
   scan.onload = () => { if(!loadViewportState(name)) fitWidth(); };
   connectEvents();
 }
-async function saveText(){
+async function saveText(fromAutoSave){
   if(!page) return;
   // Run save-time checks
   const warnings=checkSaveWarnings();
   if(warnings && warnings.length){
+    if(fromAutoSave){
+      // Never interrupt typing with a dialog from a timer: leave the text
+      // untouched and let an explicit Save surface the warnings.
+      setStatus("auto-save skipped — press Save to review warnings");
+      return;
+    }
     const ok = await showSaveWarnings(warnings);
     if(!ok) return;
   }
@@ -1268,6 +1432,11 @@ function updateHighlights(){
     last=m.segments[m.segments.length-1].idx+m.segments[m.segments.length-1].len;
   }
   html+=esc(text.slice(last));
+  // A trailing newline produces a caret line in the textarea but no line box in
+  // the pre-formatted overlay, so the overlay's content would be one line
+  // shorter and its scroll range would clamp early, leaving the highlight a line
+  // behind at the bottom of the page. Add the missing line box.
+  if(text.endsWith('\n')) html+='\u200b';
   overlay.innerHTML=html;
   overlay.scrollTop=editor.scrollTop;
   overlay.scrollLeft=editor.scrollLeft;
@@ -1355,16 +1524,22 @@ function doFind(){
       if(m.index===rx.lastIndex) rx.lastIndex++;
     }
   }catch(e){ findMatches=[]; }
-  findIndex=0;
+  findIndex=-1;
   document.getElementById('findCount').textContent=String(findMatches.length);
   updateHighlights();
 }
-function jumpToFind(){
+function jumpToFind(dir){
   if(!findMatches.length) return;
-  editor.focus();
-  const seg=findMatches[findIndex].segments[0];
+  // findIndex is -1 right after a search, so the first Enter selects match 0.
+  if(findIndex<0) findIndex = dir<0 ? findMatches.length-1 : 0;
+  else findIndex = (findIndex+dir+findMatches.length) % findMatches.length;
+  const m=findMatches[findIndex];
+  const seg=m.segments[0];
   editor.setSelectionRange(seg.idx, seg.idx+seg.len);
-  findIndex=(findIndex+1)%findMatches.length;
+  // Scroll the match into view. Focus stays in the Find box, so Enter keeps
+  // cycling through the matches instead of moving to the editor.
+  const line=editor.value.slice(0, seg.idx).split('\n').length;
+  editor.scrollTop=Math.max(0, (line-1)*editorFontSize*1.35 - editor.clientHeight/2);
 }
 function updateLineNumbers(){
   const lines = editor.value.split('\n');
@@ -1409,56 +1584,58 @@ document.getElementById('restartBtn').title = 'Restart unavailable (go or source
 // ──── Entry point ────
 
 func main() {
-        port := "1888"
-        projectDir := "."
-        explicitDir := false
-        for i := 1; i < len(os.Args); i++ {
-                arg := os.Args[i]
-                if arg == "-p" || arg == "--port" {
-                        if i+1 < len(os.Args) {
-                                port = os.Args[i+1]
-                                i++
-                        }
-                } else {
-                        projectDir = arg
-                        explicitDir = true
-                }
-        }
-        app, err := NewApp(projectDir)
-        if err != nil { log.Fatal(err) }
+	port := "1888"
+	projectDir := "."
+	explicitDir := false
+	for i := 1; i < len(os.Args); i++ {
+		arg := os.Args[i]
+		if arg == "-p" || arg == "--port" {
+			if i+1 < len(os.Args) {
+				port = os.Args[i+1]
+				i++
+			}
+		} else {
+			projectDir = arg
+			explicitDir = true
+		}
+	}
+	app, err := NewApp(projectDir)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-        if !explicitDir {
-                fmt.Printf("Using %s as book directory\n", app.ProjectDir)
-        }
+	if !explicitDir {
+		fmt.Printf("Using %s as book directory\n", app.ProjectDir)
+	}
 
-        goBin, err := exec.LookPath("go")
-        if err == nil {
-                src := findGoSource()
-                if src != "" {
-                        app.SourcePath = src
-                        cmd := []string{goBin, "run", src, "-p", port}
-                        if projectDir != "." {
-                                cmd = append(cmd, projectDir)
-                        }
-                        app.restartCmd = cmd
-                        fmt.Printf("  Restart:   http://localhost:%s/restart\n", port)
-                }
-        }
-        if app.restartCmd == nil {
-                fmt.Printf("  Restart:   unavailable (go binary or source not found)\n")
-        }
+	goBin, err := exec.LookPath("go")
+	if err == nil {
+		src := findGoSource()
+		if src != "" {
+			app.SourcePath = src
+			cmd := []string{goBin, "run", src, "-p", port}
+			if projectDir != "." {
+				cmd = append(cmd, projectDir)
+			}
+			app.restartCmd = cmd
+			fmt.Printf("  Restart:   http://localhost:%s/restart\n", port)
+		}
+	}
+	if app.restartCmd == nil {
+		fmt.Printf("  Restart:   unavailable (go binary or source not found)\n")
+	}
 
-        http.HandleFunc("/", app.handleIndex)
-        http.HandleFunc("/api/list", app.handleList)
-        http.HandleFunc("/api/events", app.handleEvents)
-        http.HandleFunc("/api/text", app.handleText)
-        http.HandleFunc("/api/save", app.handleSave)
-        http.HandleFunc("/api/restart", app.handleRestart)
-        http.HandleFunc("/restart", app.handleRestart)
-        http.HandleFunc("/image/{page}", app.handleImage)
-        addr := "localhost:" + port
-        fmt.Printf("\nPolytonic Proofreader v%s running at http://%s/\n", Version, addr)
-        fmt.Printf("Project: %s\n", app.ProjectDir)
-        fmt.Printf("Pages found: %d\n", len(app.Pages))
-        log.Fatal(http.ListenAndServe(addr, nil))
+	http.HandleFunc("/", app.handleIndex)
+	http.HandleFunc("/api/list", app.handleList)
+	http.HandleFunc("/api/events", app.handleEvents)
+	http.HandleFunc("/api/text", app.handleText)
+	http.HandleFunc("/api/save", app.handleSave)
+	http.HandleFunc("/api/restart", app.handleRestart)
+	http.HandleFunc("/restart", app.handleRestart)
+	http.HandleFunc("/image/{page}", app.handleImage)
+	addr := "localhost:" + port
+	fmt.Printf("\nPolytonic Proofreader v%s running at http://%s/\n", Version, addr)
+	fmt.Printf("Project: %s\n", app.ProjectDir)
+	fmt.Printf("Pages found: %d\n", len(app.Pages))
+	log.Fatal(http.ListenAndServe(addr, nil))
 }

@@ -90,7 +90,7 @@ Run `go run proofreader.go examples` to try it immediately (use `-p 1889` to pic
 
 ### 🔧 Custom layout
 
-Pages sharing the same 3‑character prefix (e.g. `011.jpg`, `011b.jpg`) are grouped together. Use the **source dropdown** to switch between image variants while keeping the same text.
+A page is identified by its **file name**. If the same file name exists in more than one scan directory (e.g. `scans/011.jpg` and `scans2/011.jpg`), the **source dropdown** switches between those image variants while keeping the same text.
 
 ### ⚙️ Configuration
 
@@ -134,7 +134,7 @@ Click **☐ Edit** (or **Ctrl+E**) to toggle between:
 | Edit | Type corrections, click for cursor, undo/redo work |
 
 ### 🎨 Polytonic Greek character palette
-Click **Greek Char** (or **Ctrl+P**) to open a popup with all accented/breathing‑mark variants. Click any character to insert it at the cursor position. The leftmost column (the bare letter) is also clickable — you can insert `α` without switching your keyboard.
+In **edit mode**, click **Greek Char** (or **Ctrl+P**) to open a popup with all accented/breathing‑mark variants. Click any character to insert it at the cursor position. The leftmost column (the bare letter) is also clickable — you can insert `α` without switching your keyboard.
 
 **Undo (Ctrl+Z) works** for palette insertions and direct typing.
 
@@ -163,6 +163,10 @@ Uncheck to type Latin letters normally. The setting persists across page changes
 ### 🔍 Search
 The search field finds polytonic Greek text, **ignoring accents and breathing marks**. Typing `καλος` also matches `καλός`, `καλῶς`, etc. Search is hyphenation‑aware: line‑break hyphens (`-\n`) are skipped during matching.
 
+The vowels are compared phonetically as well: **ο/ω** and **η/ι/υ** are treated as equivalent, independently of the Digraph matching setting.
+
+Press **Enter** in the search box to jump to the next match, **Shift+Enter** for the previous one. The editor scrolls to the match, and focus stays in the search box so you can keep stepping through matches.
+
 ### 📋 Copy All
 Click **Copy All** to copy the entire current page text to your clipboard. Shows a confirmation in the status bar.
 
@@ -175,9 +179,9 @@ This helps find words that may have been spelled with different vowel letters in
 ### 🔎 Magnifier
 Hover over the scan image to see a **3× magnified lens** that follows your cursor — useful for checking small diacritics and breathing marks in polytonic Greek. The magnifier can be toggled on/off:
 
-- **Settings popup** — check ☐ Always-on magnifier
-- **Middle-click** on the image pane — quickly toggle the magnifier on or off
-- **Ctrl+M** — keyboard shortcut to toggle
+- **Settings popup** — check ☐ Magnifier to keep it visible while hovering
+- **Middle-click** on the image pane — toggle the magnifier, or hold to magnify when ☐ Temporary magnifier is on
+- **Ctrl+M** — keyboard shortcut to toggle (ignored while ☐ Temporary magnifier is on)
 
 When the magnifier is off, the cursor changes back to a grab-hand for panning.
 
@@ -185,10 +189,10 @@ When the magnifier is off, the cursor changes back to a grab-hand for panning.
 In **Settings**, toggle **☐ Lines** to show/hide line numbers on the left side of the text pane. Lines that are blank or contain only metadata (e.g. `[header]`) are skipped by the numbering.
 
 ### 🗂️ Image source selector
-Use the **source dropdown** (between the page selector and the text source) to switch between multiple scan directories — e.g. `scans` (primary) and `scans2` (alternative/cleaner images of the same pages).
+Use the **source dropdown** (between the page selector and the text source) to switch between multiple scan directories — e.g. `scans` (primary) and `scans2` (alternative/cleaner images of the same pages). Your choice is kept when you move between pages; a page that does not exist in the selected scan directory falls back to the first source it does have.
 
 ### 📄 Text source selector
-Use the **text source dropdown** (next to the image source) to switch between multiple OCR sources — e.g. `ocr` (polytonic Greek) and `el` (modern Greek). This allows comparing or saving to different text directories.
+Use the **text source dropdown** (next to the image source) to switch between multiple OCR sources — e.g. `ocr` (polytonic Greek) and `el` (modern Greek). This allows comparing or saving to different text directories. Your choice is kept when you move between pages.
 
 ### ⚙️ Settings
 Click **Settings** (no shortcut) to open a popup with the following toggles:
@@ -196,12 +200,13 @@ Click **Settings** (no shortcut) to open a popup with the following toggles:
 | Setting | Default | Description |
 |---|---|---|
 | ☐ Lines | On | Show/hide line numbers in the text pane |
-| ☐ Always-on magnifier | Off | Keep the magnifier visible while hovering the image |
+| ☐ Magnifier | Off | Keep the magnifier visible while hovering the image |
+| ☐ Temporary magnifier | Off | Middle-click holds the magnifier while pressed instead of toggling it |
 | ☐ Force Greek | On | Auto-convert Latin letters to Greek in the text area and search box |
 | ☐ Digraph matching | On | Match historical spelling variants during search |
 | ☐ Restart button | On | Show/hide the Restart button in the toolbar |
 | ☐ Edit enabled by default | Off | Start every page in edit mode instead of view mode |
-| ☐ Auto-save (30s) | On | Automatically save the current page every 30 seconds when modified |
+| ☐ Auto-save (30s) | On | Automatically save the current page every 30 seconds when modified — skipped when the save warnings apply |
 
 All settings persist across page changes and browser refreshes via `localStorage`.
 
@@ -217,6 +222,7 @@ After editing the Go source, click the **Restart** button (or visit `/restart`) 
 |---|---|
 | **Ctrl+E** | Toggle edit mode |
 | **Ctrl+F** | Focus search box |
+| **Enter / Shift+Enter** | Next / previous search match (in the Find box) |
 | **Ctrl+G** | Toggle Force Greek |
 | **Ctrl+M** | Toggle magnifier |
 | **Ctrl+D** | Toggle digraph matching |
@@ -229,9 +235,13 @@ After editing the Go source, click the **Restart** button (or visit `/restart`) 
 
 ```
 ├── proofreader.go       # single‑file Go server + embedded HTML/CSS/JS
+├── build.sh             # Unix build (restart via syscall.Exec)
+├── build.bat            # Windows build (same source, restart disabled)
+├── epub/
+│   └── epub.go          # builds the proofread text into EPUB files
+├── go.mod
 ├── README.md
 ├── .gitignore
-├── reasonix.toml        # AI coding agent configuration
 ├── gemini-prompt.txt    # prompt used with AI vision models for OCR
 ├── screenshot.jpg       # screenshot for the README
 └── examples/            # ready‑to‑run sample scans + OCR text
@@ -240,7 +250,33 @@ After editing the Go source, click the **Restart** button (or visit `/restart`) 
     └── el/
 ```
 
-No dependencies beyond the Go standard library. No `go.mod`, no build step — just `go run`.
+The proofreader has no dependencies beyond the Go standard library and no build step — just `go run`. Its `go.mod` declares no requires. The optional EPUB generator in [`epub/`](epub/) is a separate program and additionally shells out to the system `zip` command.
+
+## 📚 EPUB export (`epub/`)
+
+The repo also ships a small companion program that turns a proofread book into EPUB files. It reads the same layout the proofreader writes — `ocr/` (polytonic) and `el/` (modern Greek), one `.txt` per page — and understands the metadata tags you add while proofreading:
+
+| Tag | Meaning |
+|---|---|
+| `[PAGE: …]` (in `ocr/`) / `[ΣΕΛΙΔΑ: …]` (in `el/`) | Page marker — dropped from the output; the page number comes from the file name (`050.txt` → 50) |
+| `[HEADER: …]` (in `ocr/`) / `[ΚΕΦΑΛΙΔΑ: …]` (in `el/`) | Chapter header; consecutive pages sharing a header form one chapter |
+| `[COMMENT: …]` | Commentary block |
+| `[IMAGE: …]` / `[CAPTION: …]` | Figure and its caption |
+| `[[…]]` on a line of its own | Metadata line, dropped from the output |
+| `> text` | Verse line |
+| `---` | Everything below it on the page becomes a footnote block |
+| `**text**` / `*text*` | Emphasis (both render as `<strong>`) |
+| `[word: explanation]` | Inline annotation, stripped from the output |
+
+The tag form must match the directory: `ocr/` recognises `[PAGE:]`/`[HEADER:]`, `el/` recognises `[ΣΕΛΙΔΑ:]`/`[ΚΕΦΑΛΙΔΑ:]`.
+
+```bash
+go run ./epub examples     # writes examples/dist/*.epub
+```
+
+It writes three files into `dist/`: a polytonic edition, a neo‑hellenic edition, and a dual side‑by‑side edition. It requires the `zip` command to be installed.
+
+Images referenced with `[IMAGE: …]` are copied into the book (`OEBPS/images/`) and listed in the EPUB manifest, so figures work offline. Relative paths resolve against the project root (the directory containing `ocr/` and `el/`); `.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`, `.tif`, `.tiff` and `.svg` are supported. A missing or unsupported image is reported on stderr and left out.
 
 ## 🤔 Why there is no need for binaries
 
@@ -263,8 +299,26 @@ Everything is in one file, every feature is a few lines of JavaScript or Go away
 The **Go server is script-agnostic** — only the embedded frontend (character palette, transliteration map, text detection) is script-specific. To adapt this tool for Arabic, Cyrillic, Hebrew, or any other writing system:
 
 1. **Copy** `proofreader.go` → `your-fork.go`
-2. **Give it to an AI** — paste the file into any code agent (Claude, GPT, Gemini) or web AI chat tool and tell it what script you need. Since everything is in one self-contained file with clear section markers, the AI will understand the structure and make the changes.
+2. **Give it to an AI** — paste the file into any code agent (Claude, GPT, Gemini) or web AI chat tool and tell it what script you need **and which platform you are on** (see below). Since everything is in one self-contained file with clear section markers, the AI will understand the structure and make the changes.
 3. **Run** with `go run your-fork.go /path/to/project`.
+
+### 🖥️ Tell the AI your platform too
+
+The program is deliberately kept to a **single file**, and that constrains one part of it: the hot-restart uses `syscall.Exec`, which exists on Unix (Linux, macOS, BSD) but not on Windows.
+
+The repo ships two build scripts that compile **the same `proofreader.go`**:
+
+| Command | Result |
+|---|---|
+| `./build.sh` | **default** — `./proofreader` with restart via `syscall.Exec` (Unix) |
+| `./build.sh --no-restart` | portable/CI variant — same source, restart disabled |
+| `build.bat` | `proofreader.exe` — same source, restart disabled (Windows) |
+
+With **no flag**, `./build.sh` produces the same behaviour as `go run proofreader.go`: the Restart button is live. `--no-restart` is opt-in, and `build.bat` always uses it because Windows has no `syscall.Exec`.
+
+`--no-restart` and `build.bat` compile a *temporary transformed copy*: the Unix-only call is swapped for a portable `os/exec` + `os.Exit` replacement and the restart setup is disabled, so the button is greyed out. `proofreader.go` itself is never modified.
+
+If you fork the file for another script and rewrite the restart code, tell the AI which platform you need — it has to stay in that same file.
 
 No Go dependencies beyond the standard library, no build step — just Go installed.
 
