@@ -102,6 +102,7 @@ import (
 	"html/template"
 	"log"
 	"mime"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -134,6 +135,13 @@ type App struct {
 
 	lastSaved   map[string]saveRecord
 	lastSavedMu sync.Mutex
+
+	// Single-window lease: one browser window at a time owns the book.
+	leaseMu       sync.Mutex
+	leaseHolder   string
+	leaseInstance string
+	leaseSeen     time.Time
+	leaseConns    map[string]int // client -> live SSE connections
 }
 
 type PageEntry struct {
@@ -211,7 +219,7 @@ func NewApp(projectDir string) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	app := &App{ProjectDir: projectDir, lastSaved: make(map[string]saveRecord)}
+	app := &App{ProjectDir: projectDir, lastSaved: make(map[string]saveRecord), leaseConns: make(map[string]int)}
 
 	// Discover all scans* directories (no subdirectories inside them)
 	entries, err := os.ReadDir(projectDir)
@@ -305,6 +313,100 @@ func (a *App) txtPath(page string, srcIdx int) string {
 	return filepath.Join(a.ProjectDir, a.TextDirs[srcIdx], strings.TrimSuffix(page, filepath.Ext(page))+".txt")
 }
 
+// ──── Single-window lease ────
+
+func clientFrom(r *http.Request) string { return r.URL.Query().Get("client") }
+
+// tryLease grants the book to client. First writer wins: the mutex makes
+// simultaneous lease requests race safely, and exactly one of them can win.
+func (a *App) tryLease(client, instance string, takeover bool) bool {
+	now := time.Now()
+	a.leaseMu.Lock()
+	defer a.leaseMu.Unlock()
+	if a.leaseHolder == "" || a.leaseHolder == client || takeover || now.Sub(a.leaseSeen) > leaseTimeout {
+		a.leaseHolder = client
+		a.leaseInstance = instance
+		a.leaseSeen = now
+		return true
+	}
+	return false
+}
+
+func (a *App) touchLease(client string) {
+	if client == "" {
+		return
+	}
+	a.leaseMu.Lock()
+	if a.leaseHolder == client {
+		a.leaseSeen = time.Now()
+	}
+	a.leaseMu.Unlock()
+}
+
+func (a *App) isHolder(client string) bool {
+	if client == "" {
+		return false
+	}
+	a.leaseMu.Lock()
+	defer a.leaseMu.Unlock()
+	return a.leaseHolder == client
+}
+
+func (a *App) releaseLease(client string) {
+	if client == "" {
+		return
+	}
+	a.leaseMu.Lock()
+	if a.leaseHolder == client {
+		a.leaseHolder = ""
+	}
+	a.leaseMu.Unlock()
+}
+
+func (a *App) addConn(client string) int {
+	a.leaseMu.Lock()
+	defer a.leaseMu.Unlock()
+	a.leaseConns[client]++
+	return a.leaseConns[client]
+}
+
+func (a *App) removeConn(client string) {
+	a.leaseMu.Lock()
+	defer a.leaseMu.Unlock()
+	if a.leaseConns[client] > 0 {
+		a.leaseConns[client]--
+		if a.leaseConns[client] == 0 {
+			delete(a.leaseConns, client)
+		}
+	}
+}
+
+func (a *App) connCount(client string) int {
+	a.leaseMu.Lock()
+	defer a.leaseMu.Unlock()
+	return a.leaseConns[client]
+}
+
+func (a *App) handleLease(w http.ResponseWriter, r *http.Request) {
+	client := clientFrom(r)
+	if client == "" {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"status": "client required"})
+		return
+	}
+	instance := r.URL.Query().Get("instance")
+	takeover := r.URL.Query().Get("takeover") == "1"
+	if a.tryLease(client, instance, takeover) {
+		writeJSONStatus(w, http.StatusOK, map[string]bool{"granted": true})
+		return
+	}
+	writeJSONStatus(w, http.StatusConflict, map[string]bool{"granted": false})
+}
+
+func (a *App) handleRelease(w http.ResponseWriter, r *http.Request) {
+	a.releaseLease(clientFrom(r))
+	writeJSONStatus(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 // ──── HTTP handlers ────
 
 func (a *App) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -318,6 +420,7 @@ func (a *App) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (a *App) handleList(w http.ResponseWriter, r *http.Request) {
+	a.touchLease(clientFrom(r))
 	entries := make([]PageEntry, len(a.Pages))
 	for i, p := range a.Pages {
 		entries[i] = PageEntry{Name: p, Sources: a.pageSources[p]}
@@ -347,6 +450,7 @@ func (a *App) handleImage(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path)
 }
 func (a *App) handleText(w http.ResponseWriter, r *http.Request) {
+	a.touchLease(clientFrom(r))
 	page := r.URL.Query().Get("page")
 	if page == "" && len(a.Pages) > 0 {
 		page = a.Pages[0]
@@ -389,6 +493,12 @@ func (a *App) handleSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown page", 404)
 		return
 	}
+	client := clientFrom(r)
+	if !a.isHolder(client) {
+		writeJSONStatus(w, http.StatusConflict, map[string]string{"status": "not-holder"})
+		return
+	}
+	a.touchLease(client)
 	// Reject an out-of-range source instead of letting txtPath clamp it to 0,
 	// which would silently overwrite the wrong directory.
 	if payload.Source < 0 || payload.Source >= len(a.TextDirs) {
@@ -410,10 +520,24 @@ func (a *App) handleSave(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"status": "ok", "savedLength": strconv.Itoa(len(normalized))})
 }
 
-const Version = "0.8.1"
+const (
+	Version = "0.8.1"
+
+	// leaseTimeout is how long a window's claim survives without a heartbeat.
+	leaseTimeout = 10 * time.Second
+	// leaseGrace lets a closing SSE connection (page change, reload) disappear
+	// before a second connection is treated as a duplicate window.
+	leaseGrace = 2 * time.Second
+)
 
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeJSONStatus(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
 
@@ -458,6 +582,24 @@ func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	client := clientFrom(r)
+	a.touchLease(client)
+	dupCh := make(chan struct{})
+	if client != "" {
+		defer a.removeConn(client)
+		if a.addConn(client) > 1 {
+			// A second live connection for the same client ID is a second
+			// window. Page changes and reloads close/reopen quickly, so wait out
+			// a short grace period before deciding.
+			go func() {
+				time.Sleep(leaseGrace)
+				if a.connCount(client) > 1 {
+					close(dupCh)
+				}
+			}()
+		}
+	}
+
 	// Last-known file info
 	type fileStat struct {
 		modTime time.Time
@@ -479,10 +621,20 @@ func (a *App) handleEvents(w http.ResponseWriter, r *http.Request) {
 	defer ticker.Stop()
 
 	for {
+		if client != "" && !a.isHolder(client) {
+			fmt.Fprintf(w, "event: lease-lost\ndata: 1\n\n")
+			flusher.Flush()
+			return
+		}
 		select {
 		case <-r.Context().Done():
 			return
+		case <-dupCh:
+			fmt.Fprintf(w, "event: duplicate\ndata: 1\n\n")
+			flusher.Flush()
+			return
 		case <-ticker.C:
+			a.touchLease(client)
 			if imagePath != "" {
 				if fi, err := os.Stat(imagePath); err == nil {
 					cur := &fileStat{modTime: fi.ModTime(), size: fi.Size()}
@@ -657,6 +809,13 @@ const indexHTML = `<!doctype html>
   #greekPalette .chars { display:flex; flex-wrap:wrap; gap:2px; }
   #greekPalette button { font-size:24px; width:42px; height:42px; padding:0; border:none; border-radius:4px; cursor:pointer; background:#3b3b3b; color:var(--text); display:flex; align-items:center; justify-content:center; font-family:"GFS Didot","DejaVu Serif",serif; }
   #greekPalette button:hover { background:#555; }
+  /* Single-window lease overlay */
+  #leaseOverlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:2000; align-items:center; justify-content:center; }
+  #leaseOverlay.show { display:flex; }
+  #leaseOverlay .box { background:#2b2b2b; padding:24px; border-radius:8px; max-width:460px; color:var(--text); font-family:system-ui,sans-serif; }
+  #leaseOverlay h2 { margin:0 0 12px; font-size:18px; }
+  #leaseOverlay p { margin:0 0 16px; font-size:15px; line-height:1.4; }
+  #leaseOverlay .btns { display:flex; gap:8px; justify-content:flex-end; }
 </style>
 </head>
 <body>
@@ -705,6 +864,16 @@ const indexHTML = `<!doctype html>
     </div>
   </div>
   <div id="greekPalette"></div>
+  <div id="leaseOverlay">
+    <div class="box">
+      <h2>This book is open in another window</h2>
+      <p id="leaseMsg">Close the other window and press Retry, or take over here.</p>
+      <div class="btns">
+        <button onclick="retryLease()">Retry</button>
+        <button onclick="takeOverLease()">Take over</button>
+      </div>
+    </div>
+  </div>
   <div id="settingsModal">
     <div class="box">
       <p style="font-size:16px;font-weight:bold;margin:0 0 12px">Settings</p>
@@ -779,6 +948,70 @@ const indexHTML = `<!doctype html>
 let scanDirs=[], pages=[], page="", pageIndex=0, sourceIndex=0, textDirs=[], textSourceIndex=0, zoom=1.0, modified=false;
 let savedText="";
 let eventSource=null;
+
+// ──── Single-window lease ────
+// The client ID lives in sessionStorage (one per tab, and it survives reloads);
+// the instance ID is fresh on every page load.
+function randomId(){
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'c-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+let clientId;
+try { clientId = sessionStorage.getItem('proofreaderClient'); } catch(e){}
+if(!clientId){
+  clientId = randomId();
+  try { sessionStorage.setItem('proofreaderClient', clientId); } catch(e){}
+}
+const instanceId = randomId();
+let leaseHeld = false, leaseBlocked = false, appStarted = false, autoSaveTimer = null;
+
+function withClient(url){
+  return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'client=' + encodeURIComponent(clientId);
+}
+async function requestLease(takeover){
+  try {
+    const url = withClient('/api/lease') + '&instance=' + encodeURIComponent(instanceId) + (takeover ? '&takeover=1' : '');
+    const res = await fetch(url, {method:'POST'});
+    return res.ok;
+  } catch(e){ return false; }
+}
+function showLeaseOverlay(msg){
+  leaseBlocked = true;
+  leaseHeld = false;
+  if(autoSaveTimer){ clearInterval(autoSaveTimer); autoSaveTimer = null; }
+  if(eventSource){ eventSource.close(); eventSource = null; }
+  editor.readOnly = true;
+  document.getElementById('leaseMsg').textContent = msg || 'Close the other window and press Retry, or take over here.';
+  document.getElementById('leaseOverlay').classList.add('show');
+}
+function hideLeaseOverlay(){
+  leaseBlocked = false;
+  document.getElementById('leaseOverlay').classList.remove('show');
+}
+function startApp(){
+  if(appStarted) return;
+  appStarted = true;
+  init();
+}
+async function retryLease(){
+  if(await requestLease(false)){
+    leaseHeld = true;
+    hideLeaseOverlay();
+    startApp();
+  } else {
+    document.getElementById('leaseMsg').textContent = 'Still open in another window.';
+  }
+}
+async function takeOverLease(){
+  if(await requestLease(true)){
+    leaseHeld = true;
+    hideLeaseOverlay();
+    if(appStarted) location.reload(); else startApp();
+  } else {
+    document.getElementById('leaseMsg').textContent = 'Could not take over this book.';
+  }
+}
+
 let currentTitlePage="";
 const latinToGreek={'a':'α','b':'β','c':'ψ','d':'δ','e':'ε','f':'φ','g':'γ','h':'η','i':'ι','j':'ξ','k':'κ','l':'λ','m':'μ','n':'ν','o':'ο','p':'π','q':'ς','r':'ρ','s':'σ','t':'τ','u':'θ','v':'ω','x':'χ','y':'υ','z':'ζ'};
 let forceGreek = localStorage.getItem('proofreaderForceGreek') !== '0';
@@ -978,6 +1211,7 @@ document.addEventListener('click',(e)=>{
 // Capture keyboard shortcuts before Firefox handles them.
 // This prevents Ctrl+S from opening Firefox Save-As.
 window.addEventListener("keydown",async(e)=>{
+  if(leaseBlocked) return;
   const code=e.code || "";
   const isCtrl = e.ctrlKey || e.metaKey;
 
@@ -1132,7 +1366,7 @@ function switchTextSource(idx){
   connectEvents();
 }
 async function init(){
-  const data=await fetch("/api/list").then(r=>r.json());
+  const data=await fetch(withClient("/api/list")).then(r=>r.json());
   scanDirs=data.scanDirs; pages=data.pages; textDirs=data.textDirs||[];
   if(pages.length===0){ setStatus("No scans found"); return; }
   // Populate page dropdown
@@ -1179,7 +1413,7 @@ async function init(){
     }
   }
   // Auto-save every 30 seconds when modified and auto-save is enabled
-  setInterval(async () => { if(autoSaveEnabled && modified && page) await saveText(true); }, 30000);
+  autoSaveTimer = setInterval(async () => { if(autoSaveEnabled && modified && page) await saveText(true); }, 30000);
 }
 function warnUnsaved() {
   return new Promise((resolve) => {
@@ -1199,7 +1433,7 @@ async function maybeWarnAndProceed() {
 }
 async function loadTextForPage(name){
   if(!name) return;
-  const data=await fetch("/api/text?page="+encodeURIComponent(name)+"&source="+textSourceIndex).then(r=>r.json());
+  const data=await fetch(withClient("/api/text?page="+encodeURIComponent(name)+"&source="+textSourceIndex)).then(r=>r.json());
   editor.value=data.text;
   savedText=data.text;
   updateLineNumbers();
@@ -1216,13 +1450,19 @@ async function loadTextForPage(name){
 function connectEvents(){
   if(eventSource){ eventSource.close(); eventSource=null; }
   if(!page) return;
-  const url="/api/events?page="+encodeURIComponent(page)+"&source="+sourceIndex+"&textSource="+textSourceIndex;
+  const url=withClient("/api/events?page="+encodeURIComponent(page)+"&source="+sourceIndex+"&textSource="+textSourceIndex);
   eventSource = new EventSource(url);
+  eventSource.addEventListener("lease-lost", () => {
+    showLeaseOverlay("This book was opened in another window.");
+  });
+  eventSource.addEventListener("duplicate", () => {
+    showLeaseOverlay("This book is open in another window.");
+  });
   eventSource.addEventListener("image-changed", () => {
     scan.src="/image/"+encodeURIComponent(page)+"?source="+sourceIndex+"&t="+Date.now();
   });
   eventSource.addEventListener("text-changed", async () => {
-    const data=await fetch("/api/text?page="+encodeURIComponent(page)+"&source="+textSourceIndex).then(r=>r.json());
+    const data=await fetch(withClient("/api/text?page="+encodeURIComponent(page)+"&source="+textSourceIndex)).then(r=>r.json());
     if(modified){
       // Reloading here would silently discard unsaved corrections, so keep the
       // editor contents and let the user decide (Save overwrites, or navigate
@@ -1283,7 +1523,7 @@ async function saveText(fromAutoSave){
     const ok = await showSaveWarnings(warnings);
     if(!ok) return;
   }
-  const res=await fetch("/api/save",{
+  const res=await fetch(withClient("/api/save"),{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({page:page,text:editor.value,source:textSourceIndex})
@@ -1572,7 +1812,29 @@ window.addEventListener("beforeunload", (e) => {
   e.returnValue = "";
 });
 
-init();
+(async () => {
+  // Lease first; retry briefly so a reload can win even if the previous page's
+  // release beacon is still in flight.
+  for(let i=0;i<4;i++){
+    if(await requestLease(false)){ leaseHeld = true; startApp(); return; }
+    await new Promise(r => setTimeout(r, 300));
+  }
+  showLeaseOverlay('This book is open in another window.');
+})();
+
+// Heartbeat while idle: keeps the lease fresh even while the SSE reconnects.
+setInterval(async () => {
+  if(!leaseHeld || leaseBlocked) return;
+  if(!(await requestLease(false))) showLeaseOverlay("This book was opened in another window.");
+}, 5000);
+
+// Release on close/reload so the next page can lease immediately.
+window.addEventListener('pagehide', () => {
+  if(!leaseHeld) return;
+  const url = withClient('/api/release');
+  if(navigator.sendBeacon){ navigator.sendBeacon(url); }
+  else { try { fetch(url, {method:'POST', keepalive:true}); } catch(e){} }
+});
 {{if not .RestartAvailable}}
 document.getElementById('restartBtn').disabled = true;
 document.getElementById('restartBtn').title = 'Restart unavailable (go or source file not found)';
@@ -1583,18 +1845,42 @@ document.getElementById('restartBtn').title = 'Restart unavailable (go or source
 
 // ──── Entry point ────
 
+// openBrowser asks the desktop to open url in the default browser. It is
+// best-effort: the caller logs the error and keeps serving, because the URL is
+// printed anyway.
+func openBrowser(url string) error {
+	launcher := "xdg-open"
+	if runtime.GOOS == "darwin" {
+		launcher = "open"
+	}
+	cmd := exec.Command(launcher, url)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	// Reap the launcher so it does not linger as a zombie.
+	go func() { _ = cmd.Wait() }()
+	return nil
+}
+
 func main() {
 	port := "1888"
 	projectDir := "."
 	explicitDir := false
+	openOnStart := false
 	for i := 1; i < len(os.Args); i++ {
 		arg := os.Args[i]
-		if arg == "-p" || arg == "--port" {
+		switch {
+		case arg == "-p" || arg == "--port":
 			if i+1 < len(os.Args) {
 				port = os.Args[i+1]
 				i++
 			}
-		} else {
+		case arg == "-o" || arg == "--open":
+			openOnStart = true
+		case strings.HasPrefix(arg, "-"):
+			fmt.Fprintf(os.Stderr, "unknown option %q\nusage: %s [-p PORT] [-o] [book-dir]\n", arg, filepath.Base(os.Args[0]))
+			os.Exit(2)
+		default:
 			projectDir = arg
 			explicitDir = true
 		}
@@ -1630,12 +1916,25 @@ func main() {
 	http.HandleFunc("/api/events", app.handleEvents)
 	http.HandleFunc("/api/text", app.handleText)
 	http.HandleFunc("/api/save", app.handleSave)
+	http.HandleFunc("/api/lease", app.handleLease)
+	http.HandleFunc("/api/release", app.handleRelease)
 	http.HandleFunc("/api/restart", app.handleRestart)
 	http.HandleFunc("/restart", app.handleRestart)
 	http.HandleFunc("/image/{page}", app.handleImage)
 	addr := "localhost:" + port
+	// Bind first: the banner and the optional browser tab must not race the
+	// server, and a bind failure should be reported before anything is opened.
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatal(err)
+	}
 	fmt.Printf("\nPolytonic Proofreader v%s running at http://%s/\n", Version, addr)
 	fmt.Printf("Project: %s\n", app.ProjectDir)
 	fmt.Printf("Pages found: %d\n", len(app.Pages))
-	log.Fatal(http.ListenAndServe(addr, nil))
+	if openOnStart {
+		if err := openBrowser("http://" + addr + "/"); err != nil {
+			log.Printf("could not open the browser: %v", err)
+		}
+	}
+	log.Fatal(http.Serve(listener, nil))
 }

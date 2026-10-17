@@ -96,13 +96,16 @@ A page is identified by its **file name**. If the same file name exists in more 
 
 There are **no environment variables, no config files** for paths — it's all filesystem-based with the hardcoded `"scans"` prefix as described above.
 
-### 🔌 Port
+### 🔌 Port and browser
 
-The server runs on port **1888** by default. Use the `-p` / `--port` flag to change it:
+The server runs on port **1888** by default. Use the `-p` / `--port` flag to change it, and `-o` / `--open` to open the URL in your default browser once the server is listening:
 
 ```bash
 go run proofreader.go -p 1889 examples
 # Open http://localhost:1889/
+
+go run proofreader.go -o examples
+# Opens http://localhost:1888/ automatically
 ```
 
 ## ⚡ Quick start
@@ -117,6 +120,9 @@ go run proofreader.go /path/to/project
 
 # Use a different port, for tests, or having 2 books in different tabs
 go run proofreader.go -p 1889 /path/to/project
+
+# Open the browser automatically once the server is listening
+go run proofreader.go -o examples
 ```
 
 ## ✨ Features
@@ -215,6 +221,15 @@ Click **Help** (no shortcut) to view a popup with a full reference of image-pane
 
 ### 🔄 Server restart (hot‑reload)
 After editing the Go source, click the **Restart** button (or visit `/restart`) to recompile and restart the server in-place. The browser automatically refreshes after 1 second — no need to restart the terminal command. The button is disabled if Go or the source file is not found.
+
+### 🪟 One window at a time
+
+Only one browser window can have a book open at a time. A second window or tab shows a blocking overlay with **Retry** and **Take over** instead of loading the text.
+
+- The holding window keeps the book while it is open, even if idle; closing or reloading it releases the claim immediately.
+- If the window crashes, the claim expires after about 10 seconds.
+- **Take over** moves the book to the current window; the other window switches to the overlay.
+- A duplicated tab is detected even though it shares the same stored client ID.
 
 ## ⌨️ Keyboard shortcuts
 
